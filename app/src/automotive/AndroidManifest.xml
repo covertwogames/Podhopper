@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature
+        android:name="android.hardware.type.automotive"
+        android:required="true"/>
+    <uses-feature
+        android:name="android.hardware.wifi"
+        android:required="false"/>
+    <uses-feature
+        android:name="android.hardware.bluetooth"
+        android:required="false"/>
+    <uses-feature
+        android:name="android.software.app_widgets"
+        android:required="false"/>
+
+    <application>
+        <meta-data
+            android:name="com.android.automotive"
+            android:resource="@xml/automotive_app_desc"/>
+    </application>
+
+</manifest>

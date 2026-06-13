@@ -1,0 +1,18 @@
+android {
+    flavorDimensions += ["market"]
+    productFlavors {
+        free {
+            dimension "market"
+        }
+        play {
+            dimension "market"
+        }
+        automotive {
+            dimension "market"
+        }
+    }
+    sourceSets {
+        automotive.java.srcDirs += "src/free/java"
+        automotive.res.srcDirs += "src/free/res"
+    }
+}

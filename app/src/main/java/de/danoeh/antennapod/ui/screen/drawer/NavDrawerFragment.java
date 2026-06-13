@@ -67,6 +67,7 @@ import de.danoeh.antennapod.storage.preferences.UserPreferences;
 import de.danoeh.antennapod.ui.appstartintent.MainActivityStarter;
 import de.danoeh.antennapod.ui.common.ThemeUtils;
 import de.danoeh.antennapod.ui.screen.home.HomeFragment;
+import de.danoeh.antennapod.ui.screen.subscriptions.SubscriptionFragment;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.disposables.Disposable;
@@ -498,7 +499,7 @@ public class NavDrawerFragment extends Fragment implements SharedPreferences.OnS
 
     public static String getLastNavFragment(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        return prefs.getString(PREF_LAST_FRAGMENT_TAG, HomeFragment.TAG);
+        return prefs.getString(PREF_LAST_FRAGMENT_TAG, SubscriptionFragment.TAG);
     }
 
     @Override

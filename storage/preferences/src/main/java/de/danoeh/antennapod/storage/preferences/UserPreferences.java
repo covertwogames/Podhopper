@@ -216,7 +216,7 @@ public abstract class UserPreferences {
     }
 
     public static List<String> getHiddenDrawerItems() {
-        String hiddenItems = prefs.getString(PREF_HIDDEN_DRAWER_ITEMS, "");
+        String hiddenItems = prefs.getString(PREF_HIDDEN_DRAWER_ITEMS, "HomeFragment");
         return new ArrayList<>(Arrays.asList(TextUtils.split(hiddenItems, ",")));
     }
 
@@ -769,7 +769,7 @@ public abstract class UserPreferences {
     }
 
     public static String getDefaultPage() {
-        return prefs.getString(PREF_DEFAULT_PAGE, "HomeFragment");
+        return prefs.getString(PREF_DEFAULT_PAGE, DEFAULT_PAGE_REMEMBER);
     }
 
     public static void setDefaultPage(String defaultPage) {

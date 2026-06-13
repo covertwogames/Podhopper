@@ -14,7 +14,7 @@
     <string name="statistics_label_short">Stats</string>
     <string name="add_feed_label">Add podcast</string>
     <string name="add_feed_label_short">Add</string>
-    <string name="episodes_label">Episodes</string>
+    <string name="episodes_label">Latest</string>
     <string name="episodes_label_short">Episodes</string>
     <string name="home_label">Home</string>
     <string name="home_label_short">Home</string>
@@ -28,7 +28,7 @@
     <string name="downloads_label">Downloads</string>
     <string name="downloads_label_short">Downloads</string>
     <string name="downloads_log_label">Download log</string>
-    <string name="subscriptions_label">Subscriptions</string>
+    <string name="subscriptions_label">Podcasts</string>
     <string name="subscriptions_label_short">Subscriptions</string>
     <string name="subscriptions_list_label">Subscriptions list</string>
     <string name="cancel_download_label">Cancel download</string>
@@ -791,7 +791,7 @@
     <string name="synchronization_full_sync_title">Force full synchronization</string>
     <string name="synchronization_force_sync_summary">Re-synchronize all subscriptions and episode states</string>
     <string name="synchronization_logout">Logout</string>
-    <string name="synchronization_login_status">Logged in as %1$s on %2$s.\n\nYou can choose your synchronization provider again once you have logged out.</string>
+    <string name="synchronization_login_status">Logged in as %1$s.\n\nYou can choose your synchronization provider again once you have logged out.</string>
     <string name="pref_synchronization_logout_toast">Logout was successful</string>
     <string name="gpodnetsync_error_title">gpodder.net sync error</string>
     <string name="gpodnetsync_error_descr">An error occurred during syncing:\u0020</string>

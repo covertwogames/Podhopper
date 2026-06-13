@@ -156,7 +156,7 @@ public class SynchronizationPreferencesFragment extends AnimatedPreferenceFragme
         findPreference(PREFERENCE_LOGOUT).setEnabled(loggedIn);
         if (loggedIn) {
             String summary = getString(R.string.synchronization_login_status,
-                    SynchronizationCredentials.getUsername(), SynchronizationCredentials.getHosturl());
+                    SynchronizationCredentials.getUsername());
             Spanned formattedSummary = HtmlCompat.fromHtml(summary, HtmlCompat.FROM_HTML_MODE_LEGACY);
             findPreference(PREFERENCE_LOGOUT).setSummary(formattedSummary);
             updateLastSyncReport(SynchronizationSettings.isLastSyncSuccessful(),

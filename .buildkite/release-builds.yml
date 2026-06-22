@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/buildkite/pipeline-schema/main/schema.json
+---
+
+# This pipeline is meant to be run via the Buildkite API, and is only used for release builds
+
+agents:
+  queue: "android"
+
+steps:
+  # NOTE: once this pipeline is called inline from another pipeline via ReleasesV2,
+  # we may need to use another agent to checkout the release branch before the Gradle Wrapper Validation
+  - label: Gradle Wrapper Validation
+    command: validate_gradle_wrapper
+    priority: 1
+    agents:
+      queue: linter
+
+  # Wait for Gradle Wrapper to be validated before running any other jobs
+  - wait
+
+  - label: "🛠 Release Build"
+    command: .buildkite/commands/release-build.sh "${RELEASE_VERSION}"
+    priority: 1
+    plugins: [$CI_TOOLKIT]
+    artifact_paths:
+      - "**/build/reports/lint-results*.*"
+      - "artifacts/**"
+    notify:
+      - slack: "#build-and-ship"

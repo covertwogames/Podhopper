@@ -1,0 +1,601 @@
+package au.com.shiftyjelly.pocketcasts.views.multiselect
+
+import android.content.res.Resources
+import android.widget.Toast
+import androidx.fragment.app.FragmentActivity
+import androidx.fragment.app.FragmentManager
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.map
+import androidx.lifecycle.toLiveData
+import au.com.shiftyjelly.pocketcasts.analytics.SourceView
+import au.com.shiftyjelly.pocketcasts.coroutines.di.ApplicationScope
+import au.com.shiftyjelly.pocketcasts.localization.extensions.getStringPlural
+import au.com.shiftyjelly.pocketcasts.models.entity.BaseEpisode
+import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
+import au.com.shiftyjelly.pocketcasts.models.entity.UserEpisode
+import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
+import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
+import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
+import au.com.shiftyjelly.pocketcasts.repositories.playlist.PlaylistManager
+import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
+import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
+import au.com.shiftyjelly.pocketcasts.repositories.podcast.UserEpisodeManager
+import au.com.shiftyjelly.pocketcasts.ui.helper.FragmentHostListener
+import au.com.shiftyjelly.pocketcasts.utils.combineLatest
+import au.com.shiftyjelly.pocketcasts.utils.log.LogBuffer
+import au.com.shiftyjelly.pocketcasts.views.R
+import au.com.shiftyjelly.pocketcasts.views.dialog.ConfirmationDialog
+import au.com.shiftyjelly.pocketcasts.views.dialog.ShareDialogFactory
+import au.com.shiftyjelly.pocketcasts.views.helper.CloudDeleteHelper
+import au.com.shiftyjelly.pocketcasts.views.helper.DeleteState
+import au.com.shiftyjelly.pocketcasts.views.swipe.AddToPlaylistFragmentFactory
+import com.automattic.android.tracks.crashlogging.CrashLogging
+import com.automattic.eventhorizon.EpisodeBulkArchivedEvent
+import com.automattic.eventhorizon.EpisodeBulkMarkedAsPlayedEvent
+import com.automattic.eventhorizon.EpisodeBulkMarkedAsUnplayedEvent
+import com.automattic.eventhorizon.EpisodeBulkStarredEvent
+import com.automattic.eventhorizon.EpisodeBulkUnarchivedEvent
+import com.automattic.eventhorizon.EpisodeBulkUnstarredEvent
+import com.automattic.eventhorizon.EpisodeRemovedListeningHistoryEvent
+import com.automattic.eventhorizon.EventHorizon
+import com.google.android.material.snackbar.Snackbar
+import io.reactivex.BackpressureStrategy
+import javax.inject.Inject
+import kotlin.math.min
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import au.com.shiftyjelly.pocketcasts.images.R as IR
+import au.com.shiftyjelly.pocketcasts.localization.R as LR
+import au.com.shiftyjelly.pocketcasts.ui.R as UR
+
+private const val WARNING_LIMIT = 3
+class MultiSelectEpisodesHelper @Inject constructor(
+    val episodeManager: EpisodeManager,
+    val userEpisodeManager: UserEpisodeManager,
+    val podcastManager: PodcastManager,
+    val playbackManager: PlaybackManager,
+    val downloadQueue: DownloadQueue,
+    val settings: Settings,
+    private val eventHorizon: EventHorizon,
+    @ApplicationScope private val applicationScope: CoroutineScope,
+    private val crashLogging: CrashLogging,
+    private val shareDialogFactory: ShareDialogFactory,
+    private val addToPlaylistFragmentFactory: AddToPlaylistFragmentFactory,
+) : MultiSelectHelper<BaseEpisode>() {
+    override val maxToolbarIcons = 4
+
+    override val toolbarActions: LiveData<List<MultiSelectAction>> = settings.multiSelectItemsObservable
+        .toFlowable(BackpressureStrategy.LATEST)
+        .map { MultiSelectEpisodeAction.listFromIds(it) }
+        .toLiveData()
+        .combineLatest(_selectedListLive)
+        .map { (actions, selectedEpisodes) ->
+            crashLogging.recordEvent("MultiSelectEpisodesHelper toolbarActions updated (${actions.size}): ${actions.map { it::class.java.simpleName }}, ${selectedEpisodes.size} selectedEpisodes from $source")
+            actions.mapNotNull {
+                MultiSelectEpisodeAction.actionForGroup(it.groupId, selectedEpisodes)
+            }
+        }
+
+    override fun isSelected(multiSelectable: BaseEpisode) = selectedSet.any { it.uuid == multiSelectable.uuid }
+
+    override fun onMenuItemSelected(itemId: Int, resources: Resources, activity: FragmentActivity): Boolean {
+        val fragmentManager = activity.supportFragmentManager
+        return when (itemId) {
+            R.id.menu_archive -> {
+                archive(resources = resources, fragmentManager = fragmentManager)
+                true
+            }
+
+            UR.id.menu_unarchive -> {
+                unarchive(resources = resources)
+                true
+            }
+
+            R.id.menu_delete -> {
+                delete(resources, fragmentManager)
+                true
+            }
+
+            R.id.menu_share -> {
+                share(fragmentManager)
+                true
+            }
+
+            R.id.menu_download -> {
+                download(resources, fragmentManager)
+                true
+            }
+
+            UR.id.menu_undownload -> {
+                deleteDownload(resources, fragmentManager)
+                true
+            }
+
+            R.id.menu_mark_played -> {
+                markAsPlayed(resources = resources, fragmentManager = fragmentManager)
+                true
+            }
+
+            UR.id.menu_markasunplayed -> {
+                markAsUnplayed(resources = resources)
+                true
+            }
+
+            R.id.menu_playnext -> {
+                playNext(resources = resources)
+                true
+            }
+
+            R.id.menu_playlast -> {
+                playLast(resources = resources)
+                true
+            }
+
+            R.id.menu_select_all -> {
+                selectAll()
+                true
+            }
+
+            R.id.menu_unselect_all -> {
+                unselectAll()
+                true
+            }
+
+            R.id.menu_removefromupnext -> {
+                removeFromUpNext(resources = resources)
+                true
+            }
+
+            R.id.menu_movetotop -> {
+                moveToTop()
+                true
+            }
+
+            R.id.menu_movetobottom -> {
+                moveToBottom()
+                true
+            }
+
+            R.id.menu_star -> {
+                star(resources = resources)
+                true
+            }
+
+            UR.id.menu_unstar -> {
+                unstar(resources = resources)
+                true
+            }
+
+            UR.id.menu_remove_listening_history -> {
+                removeListeningHistory(resources = resources)
+                true
+            }
+
+            UR.id.menu_add_to_playlist -> {
+                addToPlaylist(activity)
+                true
+            }
+
+            else -> false
+        }
+    }
+
+    override fun deselect(multiSelectable: BaseEpisode) {
+        if (isSelected(multiSelectable)) {
+            selectedSet.removeIf { it.uuid == multiSelectable.uuid }
+        }
+
+        _selectedListLive.value = selectedSet.toList()
+
+        if (selectedSet.isEmpty()) {
+            closeMultiSelect()
+        }
+    }
+
+    fun markAsPlayed(shownWarning: Boolean = false, resources: Resources, fragmentManager: FragmentManager) {
+        if (selectedSet.isEmpty()) {
+            closeMultiSelect()
+            return
+        }
+
+        launch {
+            val list = selectedSet.toList()
+            if (!shownWarning && list.size > WARNING_LIMIT) {
+                playedWarning(list.size, resources = resources, fragmentManager = fragmentManager)
+                return@launch
+            }
+
+            episodeManager.markAllAsPlayed(list, playbackManager, podcastManager)
+            eventHorizon.track(
+                EpisodeBulkMarkedAsPlayedEvent(
+                    count = list.size.toLong(),
+                    source = source.analyticsValue,
+                ),
+            )
+            launch(Dispatchers.Main) {
+                val snackText = resources.getStringPlural(selectedSet.size, LR.string.marked_as_played_singular, LR.string.marked_as_played_plural)
+                showSnackBar(snackText)
+                closeMultiSelect()
+            }
+        }
+    }
+
+    private fun markAsUnplayed(resources: Resources) {
+        if (selectedSet.isEmpty()) {
+            closeMultiSelect()
+            return
+        }
+
+        launch {
+            val list = selectedSet.toList()
+
+            episodeManager.markAsUnplayed(list)
+            eventHorizon.track(
+                EpisodeBulkMarkedAsUnplayedEvent(
+                    count = list.size.toLong(),
+                    source = source.analyticsValue,
+                ),
+            )
+            launch(Dispatchers.Main) {
+                val snackText = resources.getStringPlural(selectedSet.size, LR.string.marked_as_unplayed_singular, LR.string.marked_as_unplayed_plural)
+                showSnackBar(snackText)
+                closeMultiSelect()
+            }
+        }
+    }
+
+    fun archive(shownWarning: Boolean = false, resources: Resources, fragmentManager: FragmentManager) {
+        if (selectedSet.isEmpty()) {
+            closeMultiSelect()
+            return
+        }
+
+        launch {
+            val list = selectedSet.filterIsInstance<PodcastEpisode>().toList()
+            if (!shownWarning && list.size > WARNING_LIMIT) {
+                archiveWarning(list.size, resources = resources, fragmentManager = fragmentManager)
+                return@launch
+            }
+
+            episodeManager.archiveAllInList(list, playbackManager)
+            eventHorizon.track(
+                EpisodeBulkArchivedEvent(
+                    count = list.size.toLong(),
+                    source = source.analyticsValue,
+                ),
+            )
+            withContext(Dispatchers.Main) {
+                val snackText = resources.getStringPlural(selectedSet.size, LR.string.archived_episodes_singular, LR.string.archived_episodes_plural)
+                showSnackBar(snackText)
+                closeMultiSelect()
+            }
+        }
+    }
+
+    private fun unarchive(resources: Resources) {
+        if (selectedSet.isEmpty()) {
+            closeMultiSelect()
+            return
+        }
+
+        launch {
+            val list = selectedSet.filterIsInstance<PodcastEpisode>().toList()
+
+            episodeManager.unarchiveAllInListBlocking(episodes = list)
+            eventHorizon.track(
+                EpisodeBulkUnarchivedEvent(
+                    count = list.size.toLong(),
+                    source = source.analyticsValue,
+                ),
+            )
+            withContext(Dispatchers.Main) {
+                val snackText = resources.getStringPlural(selectedSet.size, LR.string.unarchived_episodes_singular, LR.string.unarchived_episodes_plural)
+                showSnackBar(snackText)
+                closeMultiSelect()
+            }
+        }
+    }
+
+    fun star(resources: Resources) {
+        if (selectedSet.isEmpty()) {
+            closeMultiSelect()
+            return
+        }
+
+        launch {
+            val list = selectedSet.filterIsInstance<PodcastEpisode>().toList()
+            episodeManager.updateAllStarred(list, starred = true)
+            eventHorizon.track(
+                EpisodeBulkStarredEvent(
+                    count = list.size.toLong(),
+                    source = source.analyticsValue,
+                ),
+            )
+            withContext(Dispatchers.Main) {
+                val snackText = resources.getStringPlural(selectedSet.size, LR.string.starred_episodes_singular, LR.string.starred_episodes_plural)
+                showSnackBar(snackText)
+                closeMultiSelect()
+            }
+        }
+    }
+
+    private fun unstar(resources: Resources) {
+        if (selectedSet.isEmpty()) {
+            closeMultiSelect()
+            return
+        }
+
+        launch {
+            val list = selectedSet.filterIsInstance<PodcastEpisode>().toList()
+            episodeManager.updateAllStarred(list, starred = false)
+            eventHorizon.track(
+                EpisodeBulkUnstarredEvent(
+                    count = list.size.toLong(),
+                    source = source.analyticsValue,
+                ),
+            )
+            withContext(Dispatchers.Main) {
+                val snackText = resources.getStringPlural(selectedSet.size, LR.string.unstarred_episodes_singular, LR.string.unstarred_episodes_plural)
+                showSnackBar(snackText)
+                closeMultiSelect()
+            }
+        }
+    }
+
+    private fun removeListeningHistory(resources: Resources) {
+        if (selectedSet.isEmpty()) {
+            closeMultiSelect()
+            return
+        }
+
+        launch {
+            val list = selectedSet.filterIsInstance<PodcastEpisode>().toList()
+            episodeManager.clearEpisodeHistory(list)
+            eventHorizon.track(
+                EpisodeRemovedListeningHistoryEvent(
+                    count = list.size.toLong(),
+                    source = source.analyticsValue,
+                ),
+            )
+            withContext(Dispatchers.Main) {
+                val snackText = resources.getStringPlural(selectedSet.size, LR.string.remove_listening_history_episodes_singular, LR.string.remove_listening_history_episodes_plural)
+                showSnackBar(snackText)
+                closeMultiSelect()
+            }
+        }
+    }
+
+    fun playedWarning(count: Int, resources: Resources, fragmentManager: FragmentManager) {
+        val buttonString = resources.getStringPlural(count = count, singular = LR.string.mark_as_played_singular, plural = LR.string.mark_as_played_plural)
+
+        ConfirmationDialog()
+            .setTitle(resources.getString(LR.string.mark_as_played_title))
+            .setIconId(IR.drawable.ic_markasplayed)
+            .setButtonType(ConfirmationDialog.ButtonType.Danger(buttonString))
+            .setOnConfirm { markAsPlayed(shownWarning = true, resources = resources, fragmentManager = fragmentManager) }
+            .show(fragmentManager, "confirm_played_all_")
+    }
+
+    private fun archiveWarning(count: Int, resources: Resources, fragmentManager: FragmentManager) {
+        val buttonString = resources.getStringPlural(count = count, singular = LR.string.archive_episodes_singular, plural = LR.string.archive_episodes_plural)
+
+        ConfirmationDialog()
+            .setTitle(resources.getString(LR.string.archive_title))
+            .setSummary(resources.getString(LR.string.archive_summary))
+            .setIconId(IR.drawable.ic_archive)
+            .setButtonType(ConfirmationDialog.ButtonType.Danger(buttonString))
+            .setOnConfirm { archive(shownWarning = true, resources = resources, fragmentManager = fragmentManager) }
+            .show(fragmentManager, "confirm_archive_all_")
+    }
+
+    fun download(resources: Resources, fragmentManager: FragmentManager) {
+        if (selectedSet.isEmpty()) {
+            closeMultiSelect()
+            return
+        }
+
+        val list = selectedSet.toList()
+        val trimmedList = list.subList(0, min(Settings.MAX_DOWNLOAD, selectedSet.count())).map(BaseEpisode::uuid)
+        ConfirmationDialog.downloadWarningDialog(list.count(), resources) {
+            downloadQueue.enqueueAll(trimmedList, DownloadType.UserTriggered(waitForWifi = false), source)
+            val snackText = resources.getStringPlural(trimmedList.size, LR.string.download_queued_singular, LR.string.download_queued_plural)
+            showSnackBar(snackText)
+            closeMultiSelect()
+        }?.show(fragmentManager, "multiselect_download")
+    }
+
+    private fun deleteDownload(resources: Resources, fragmentManager: FragmentManager) {
+        if (selectedSet.isEmpty()) {
+            closeMultiSelect()
+            return
+        }
+
+        val list = selectedSet.toList()
+        ConfirmationDialog.deleteDownloadWarningDialog(
+            episodeCount = list.size,
+            warningLimit = WARNING_LIMIT,
+            resources = resources,
+        ) {
+            performDeleteDownload(list)
+        }?.show(fragmentManager, "confirm_delete_downloads")
+    }
+
+    private fun performDeleteDownload(list: List<BaseEpisode>) {
+        closeMultiSelect()
+        launch {
+            withContext(NonCancellable) {
+                val episodes = list.filterIsInstance<PodcastEpisode>().map(BaseEpisode::uuid)
+                downloadQueue.cancelAll(episodes, source)
+
+                val userEpisodes = list.filterIsInstance<UserEpisode>()
+                userEpisodeManager.deleteAll(userEpisodes, playbackManager)
+                episodeManager.disableAutoDownload(list)
+            }
+        }
+    }
+
+    private fun playNext(resources: Resources) {
+        if (selectedSet.isEmpty()) {
+            closeMultiSelect()
+            return
+        }
+
+        val size = min(settings.getMaxUpNextEpisodes(), selectedSet.count())
+        val trimmedList = selectedSet.take(size).toList()
+        launch {
+            playbackManager.playEpisodesNext(episodes = trimmedList, source = source)
+            withContext(Dispatchers.Main) {
+                val snackText = resources.getStringPlural(size, LR.string.added_to_up_next_singular, LR.string.added_to_up_next_plural)
+                showSnackBar(snackText)
+                closeMultiSelect()
+            }
+        }
+    }
+
+    private fun playLast(resources: Resources) {
+        if (selectedSet.isEmpty()) {
+            closeMultiSelect()
+            return
+        }
+
+        val size = min(settings.getMaxUpNextEpisodes(), selectedSet.count())
+        val trimmedList = selectedSet.take(size).toList()
+        launch {
+            playbackManager.playEpisodesLast(episodes = trimmedList, source = source)
+            withContext(Dispatchers.Main) {
+                val snackText = resources.getStringPlural(size, LR.string.added_to_up_next_singular, LR.string.added_to_up_next_plural)
+                showSnackBar(snackText)
+                closeMultiSelect()
+            }
+        }
+    }
+
+    fun delete(resources: Resources, fragmentManager: FragmentManager) {
+        val episodes = selectedSet.filterIsInstance<UserEpisode>()
+        if (episodes.isEmpty()) return
+
+        val onServer = episodes.count { it.isUploaded }
+        val onDevice = episodes.count { it.isDownloaded }
+
+        val deleteState = CloudDeleteHelper.getDeleteState(isDownloaded = onDevice > 0, isBoth = onServer > 0 && onDevice > 0)
+        val deleteFunction: (List<UserEpisode>, DeleteState) -> Unit = { episodesToDelete, state ->
+            episodesToDelete.forEach {
+                CloudDeleteHelper.deleteEpisode(
+                    episode = it,
+                    deleteState = state,
+                    sourceView = source,
+                    downloadQueue = downloadQueue,
+                    playbackManager = playbackManager,
+                    userEpisodeManager = userEpisodeManager,
+                    applicationScope = applicationScope,
+                )
+            }
+            val snackText = resources.getStringPlural(episodesToDelete.size, LR.string.episodes_deleted_singular, LR.string.episodes_deleted_plural)
+            showSnackBar(snackText)
+            closeMultiSelect()
+        }
+        CloudDeleteHelper.getDeleteDialog(episodes, deleteState, deleteFunction, resources).show(fragmentManager, "delete_warning")
+    }
+
+    fun share(fragmentManager: FragmentManager) {
+        val episode = selectedSet.let { list ->
+            if (list.size != 1) {
+                LogBuffer.e(LogBuffer.TAG_INVALID_STATE, "Can only share one episode, but trying to share ${selectedSet.size} episodes when multi selecting")
+                return
+            } else {
+                list.first()
+            }
+        }
+
+        if (episode !is PodcastEpisode) {
+            LogBuffer.e(LogBuffer.TAG_INVALID_STATE, "Can only share a ${PodcastEpisode::class.java.simpleName}")
+            Toast.makeText(context, LR.string.podcasts_share_failed, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        launch {
+            val podcast = podcastManager.findPodcastByUuid(episode.podcastUuid) ?: run {
+                LogBuffer.e(LogBuffer.TAG_INVALID_STATE, "Share failed because unable to find podcast from uuid")
+                return@launch
+            }
+
+            shareDialogFactory
+                .shareEpisode(podcast, episode, SourceView.MULTI_SELECT)
+                .show(fragmentManager, "share_dialog")
+        }
+
+        closeMultiSelect()
+    }
+
+    private fun removeFromUpNext(resources: Resources) {
+        val list = selectedSet.toList()
+        launch {
+            list.forEach {
+                playbackManager.upNextQueue.removeEpisode(it)
+            }
+
+            withContext(Dispatchers.Main) {
+                val snackText = resources.getStringPlural(list.size, LR.string.removed_from_up_next_singular, LR.string.removed_from_up_next_plural)
+                showSnackBar(snackText)
+            }
+        }
+
+        closeMultiSelect()
+    }
+
+    private fun moveToTop() {
+        val list = selectedSet.toList()
+        playbackManager.playEpisodesNext(episodes = list, source = source)
+        closeMultiSelect()
+    }
+
+    private fun moveToBottom() {
+        val list = selectedSet.toList()
+        playbackManager.playEpisodesLast(episodes = list, source = source)
+        closeMultiSelect()
+    }
+
+    private fun addToPlaylist(activity: FragmentActivity) {
+        if (selectedSet.any { episode -> episode !is PodcastEpisode }) {
+            val snackbarView = (activity as? FragmentHostListener)?.snackBarView()
+            if (snackbarView != null) {
+                Snackbar.make(snackbarView, LR.string.playlist_only_podcast_episodes_allowed, Snackbar.LENGTH_LONG).show()
+            }
+            return
+        }
+
+        val episodeUuids = selectedSet.mapNotNull { episode ->
+            when (episode) {
+                is PodcastEpisode -> episode.uuidPair
+                is UserEpisode -> null
+            }
+        }
+        if (episodeUuids.size > PlaylistManager.MANUAL_PLAYLIST_EPISODE_LIMIT) {
+            val snackbarView = (activity as? FragmentHostListener)?.snackBarView()
+            if (snackbarView != null) {
+                val message = activity.getString(LR.string.playlist_limit_reached, PlaylistManager.MANUAL_PLAYLIST_EPISODE_LIMIT)
+                Snackbar.make(snackbarView, message, Snackbar.LENGTH_LONG).show()
+            }
+            return
+        }
+        if (episodeUuids.isNotEmpty()) {
+            val fragmentManager = activity.supportFragmentManager
+            if (fragmentManager.findFragmentByTag("add-to-playlist") == null) {
+                val fragment = addToPlaylistFragmentFactory.create(
+                    source = AddToPlaylistFragmentFactory.Source.MultiSelect,
+                    uuids = episodeUuids,
+                )
+                fragment.show(fragmentManager, "add-to-playlist")
+            }
+            closeMultiSelect()
+        }
+    }
+
+    companion object {
+        const val MULTI_SELECT_TOGGLE_PAYLOAD = "multi-select-toggle"
+    }
+}

@@ -1,0 +1,132 @@
+package au.com.shiftyjelly.pocketcasts.utils.extensions
+
+import au.com.shiftyjelly.pocketcasts.utils.log.LogBuffer
+import java.security.MessageDigest
+import java.text.Normalizer
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+import java.util.UUID
+import net.gcardone.junidecode.Junidecode
+import timber.log.Timber
+
+val ISO_DATE_FORMATS = object : ThreadLocal<List<SimpleDateFormat>>() {
+    override fun initialValue(): List<SimpleDateFormat> {
+        return listOf(
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            },
+            // ISO dates can have milliseconds
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            },
+        )
+    }
+}
+
+fun String.parseIsoDate(): Date? {
+    val formats = ISO_DATE_FORMATS.get() ?: return null
+    for (format in formats) {
+        try {
+            return format.parse(this)
+        } catch (e: Exception) {
+            // try next format
+        }
+    }
+    Timber.e("Parsing ISO date failed [${toString()}]")
+    return null
+}
+
+fun String.toSecondsFromColonFormattedString(): Int? {
+    if (this.isBlank()) {
+        return null
+    }
+
+    var time = 0.0
+    val parts = this.split(":").toTypedArray()
+    var multiplier = 1
+    try {
+        for (i in parts.indices.reversed()) {
+            time += (Integer.parseInt(parts[i]) * multiplier).toDouble()
+            multiplier *= 60
+        }
+
+        return time.toInt()
+    } catch (e: NumberFormatException) {
+        Timber.e(e)
+    }
+
+    return null
+}
+
+fun CharSequence.splitIgnoreEmpty(delimiter: String): List<String> {
+    return if (isEmpty()) emptyList() else split(delimiter)
+}
+
+fun String.removeNewLines(): String {
+    return this.replace("[\n\r]".toRegex(), "")
+}
+
+private val nfdDecomposedCharacters = """\p{Mn}+""".toRegex()
+
+fun String.removeAccents() = Normalizer.normalize(this, Normalizer.Form.NFD)
+    .replace(nfdDecomposedCharacters, "")
+    .replace("\u0141", "L")
+    .replace("\u0142", "l")
+    .lowercase()
+
+fun String.unidecode() = buildString {
+    val decoded = Junidecode.unidecode(this@unidecode)
+
+    var shouldAppendWhitespace = false
+    for (character in decoded) {
+        if (character.isLetterOrDigit()) {
+            append(character.lowercaseChar())
+            shouldAppendWhitespace = true
+        } else if (character.isWhitespace() && shouldAppendWhitespace) {
+            append(' ')
+            shouldAppendWhitespace = false
+        }
+    }
+    if (lastOrNull() == ' ') {
+        deleteCharAt(lastIndex)
+    }
+}
+
+fun String.escapeLike(escapeChar: Char, unidecode: Boolean = true): String {
+    val base = if (unidecode) unidecode() else this
+    return buildString {
+        for (character in base) {
+            when (character) {
+                escapeChar, '%', '_' -> {
+                    append(escapeChar)
+                    append(character)
+                }
+
+                else -> {
+                    append(character)
+                }
+            }
+        }
+    }
+}
+
+fun String.toUuidOrNull() = runCatching { UUID.fromString(this) }.getOrNull()
+
+fun String.sha1(): String? = hashString("SHA-1")
+fun String.sha256(): String? = hashString("SHA-256")
+fun List<String>.md5(): String? = this.joinToString(",").hashString("MD5")
+
+/**
+ * For information on permitted algorithms, see
+ * https://developer.android.com/reference/kotlin/java/security/MessageDigest
+ */
+private fun String.hashString(algorithm: String) = try {
+    MessageDigest.getInstance(algorithm)
+        .digest(toByteArray())
+        .joinToString("") { "%02x".format(it) }
+} catch (e: Exception) {
+    LogBuffer.e(LogBuffer.TAG_INVALID_STATE, "Error applying $algorithm to $this: ${e.message}")
+    null
+}

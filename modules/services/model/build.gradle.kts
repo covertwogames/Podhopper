@@ -1,0 +1,54 @@
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.parcelize)
+    alias(libs.plugins.room)
+}
+
+android {
+    namespace = "au.com.shiftyjelly.pocketcasts.model"
+    room {
+        schemaDirectory("$projectDir/schemas")
+    }
+    buildFeatures {
+        buildConfig = true
+    }
+}
+
+dependencies {
+    ksp(libs.dagger.hilt.compiler)
+    ksp(libs.hilt.compiler)
+    ksp(libs.moshi.kotlin.codegen)
+    ksp(libs.room.compiler)
+
+    api(libs.billing.ktx)
+    api(libs.eventhorizon)
+    api(libs.media3.extractor)
+    api(libs.moshi)
+    api(libs.okhttp)
+    api(libs.room)
+    api(libs.rx2.java)
+
+    api(projects.modules.services.utils)
+
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.coroutines.core)
+    implementation(libs.dagger.hilt.core)
+    implementation(libs.play.auth)
+    implementation(libs.play.cast)
+    implementation(libs.room.ktx)
+    implementation(libs.room.rx2)
+    implementation(libs.timber)
+
+    implementation(projects.modules.services.localization)
+
+    compileOnly(libs.media3.common)
+
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.kotlin)
+    testImplementation(projects.modules.services.sharedtest)
+
+    androidTestImplementation(libs.androidx.annotation)
+}

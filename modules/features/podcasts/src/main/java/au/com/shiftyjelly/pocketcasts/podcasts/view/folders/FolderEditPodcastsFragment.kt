@@ -1,0 +1,67 @@
+package au.com.shiftyjelly.pocketcasts.podcasts.view.folders
+
+import android.content.DialogInterface
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.ViewGroup
+import androidx.fragment.app.viewModels
+import au.com.shiftyjelly.pocketcasts.compose.AppThemeWithBackground
+import au.com.shiftyjelly.pocketcasts.compose.extensions.contentWithoutConsumedInsets
+import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.views.fragments.BaseDialogFragment
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+
+@AndroidEntryPoint
+class FolderEditPodcastsFragment : BaseDialogFragment() {
+
+    @Inject
+    lateinit var settings: Settings
+
+    private val viewModel: FolderEditViewModel by viewModels()
+
+    companion object {
+        const val ARG_FOLDER_UUID = "ARG_FOLDER_UUID"
+
+        fun newInstance(folderUuid: String): FolderEditPodcastsFragment {
+            return FolderEditPodcastsFragment().apply {
+                arguments = Bundle().apply {
+                    putString(ARG_FOLDER_UUID, folderUuid)
+                }
+            }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        arguments?.getString(ARG_FOLDER_UUID)?.let { folderUuid ->
+            viewModel.setFolderUuid(folderUuid)
+        }
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ) = contentWithoutConsumedInsets {
+        AppThemeWithBackground(theme.activeTheme) {
+            FolderEditPodcastsPage(
+                onCloseClick = { dismiss() },
+                onNextClick = {
+                    viewModel.saveFolderPodcasts {
+                        dismiss()
+                    }
+                },
+                viewModel = viewModel,
+                settings = settings,
+                fragmentManager = parentFragmentManager,
+            )
+        }
+    }
+
+    override fun onDismiss(dialog: DialogInterface) {
+        viewModel.trackDismiss()
+        super.onDismiss(dialog)
+    }
+}

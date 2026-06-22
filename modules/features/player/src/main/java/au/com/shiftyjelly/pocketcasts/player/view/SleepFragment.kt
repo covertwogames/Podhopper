@@ -1,0 +1,378 @@
+package au.com.shiftyjelly.pocketcasts.player.view
+
+import android.content.res.ColorStateList
+import android.os.Bundle
+import android.os.Parcelable
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.core.view.isVisible
+import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.Observer
+import au.com.shiftyjelly.pocketcasts.compose.AppTheme
+import au.com.shiftyjelly.pocketcasts.compose.components.NumberStepper
+import au.com.shiftyjelly.pocketcasts.compose.extensions.setContentWithViewCompositionStrategy
+import au.com.shiftyjelly.pocketcasts.player.databinding.FragmentSleepBinding
+import au.com.shiftyjelly.pocketcasts.player.viewmodel.PlayerViewModel
+import au.com.shiftyjelly.pocketcasts.settings.PlaybackSettingsFragment
+import au.com.shiftyjelly.pocketcasts.settings.PlaybackSettingsFragment.Companion.SCROLL_TO_SLEEP_TIMER
+import au.com.shiftyjelly.pocketcasts.settings.SettingsFragment
+import au.com.shiftyjelly.pocketcasts.ui.helper.FragmentHostListener
+import au.com.shiftyjelly.pocketcasts.ui.helper.StatusBarIconColor
+import au.com.shiftyjelly.pocketcasts.ui.theme.Theme
+import au.com.shiftyjelly.pocketcasts.utils.combineLatest
+import au.com.shiftyjelly.pocketcasts.utils.extensions.requireParcelable
+import au.com.shiftyjelly.pocketcasts.views.fragments.BaseDialogFragment
+import com.airbnb.lottie.LottieProperty
+import com.airbnb.lottie.model.KeyPath
+import com.automattic.eventhorizon.EventHorizon
+import com.automattic.eventhorizon.PlayerSleepTimerCancelledEvent
+import com.automattic.eventhorizon.PlayerSleepTimerEnabledEvent
+import com.automattic.eventhorizon.PlayerSleepTimerExtendedEvent
+import com.automattic.eventhorizon.PlayerSleepTimerSettingsTappedEvent
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import dagger.hilt.android.AndroidEntryPoint
+import io.reactivex.Observable
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.Disposable
+import io.reactivex.rxkotlin.subscribeBy
+import io.reactivex.schedulers.Schedulers
+import java.util.concurrent.TimeUnit
+import javax.inject.Inject
+import kotlin.time.Duration.Companion.minutes
+import kotlinx.parcelize.Parcelize
+import timber.log.Timber
+import au.com.shiftyjelly.pocketcasts.localization.R as LR
+import au.com.shiftyjelly.pocketcasts.views.R as VR
+
+@AndroidEntryPoint
+class SleepFragment : BaseDialogFragment() {
+
+    @Inject
+    lateinit var eventHorizon: EventHorizon
+
+    override val statusBarIconColor = StatusBarIconColor.Light
+
+    private val viewModel: PlayerViewModel by activityViewModels()
+    private var binding: FragmentSleepBinding? = null
+    private var disposable: Disposable? = null
+
+    private val args get() = requireArguments().requireParcelable<Args>(NEW_INSTANCE_ARG)
+
+    override fun onResume() {
+        super.onResume()
+
+        // refresh the sleep time every second
+        disposable = Observable.interval(0, 1, TimeUnit.SECONDS)
+            .subscribeOn(Schedulers.io())
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribeBy(
+                onError = { Timber.e(it) },
+                onNext = { viewModel.updateSleepTimer() },
+            )
+    }
+
+    override fun onPause() {
+        super.onPause()
+
+        disposable?.dispose()
+    }
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        val binding = FragmentSleepBinding.inflate(inflater, container, false)
+        this.binding = binding
+
+        binding.buttonMins15.setOnClickListener { startTimer(mins = 15) }
+        binding.buttonMins30.setOnClickListener { startTimer(mins = 30) }
+        binding.buttonOneHour.setOnClickListener { startTimer(mins = 60) }
+        binding.buttonCustom.setOnClickListener { startCustomTimer() }
+        binding.buttonEndOfEpisode.setOnClickListener {
+            val episodes = viewModel.getSleepEndOfEpisodes()
+            eventHorizon.track(
+                PlayerSleepTimerEnabledEvent(
+                    numberOfEpisodes = episodes.toLong(),
+                ),
+            )
+            startTimerEndOfEpisode(episodes = episodes)
+        }
+        binding.buttonEndOfChapter.setOnClickListener {
+            val chapters = viewModel.getSleepEndOfChapters()
+            eventHorizon.track(
+                PlayerSleepTimerEnabledEvent(
+                    numberOfChapters = chapters.toLong(),
+                ),
+            )
+            startTimerEndOfChapter(chapters = chapters)
+        }
+        binding.buttonAdd5Minute.setOnClickListener { addExtra5minute() }
+        binding.buttonAdd1Minute.setOnClickListener { addExtra1minute() }
+        binding.buttonEndOfEpisode2.setOnClickListener {
+            val episodesAmountToExtend = 1
+            eventHorizon.track(
+                PlayerSleepTimerExtendedEvent(
+                    numberOfEpisodes = episodesAmountToExtend.toLong(),
+                ),
+            )
+            startTimerEndOfEpisode(episodes = episodesAmountToExtend)
+        }
+        binding.buttonEndOfChapter2.setOnClickListener {
+            val chaptersAmountToExtend = 1
+            eventHorizon.track(
+                PlayerSleepTimerExtendedEvent(
+                    numberOfChapters = chaptersAmountToExtend.toLong(),
+                ),
+            )
+            startTimerEndOfChapter(chapters = chaptersAmountToExtend)
+        }
+        binding.buttonCancelTime.setOnClickListener { cancelTimer() }
+        binding.buttonCancelEndOfEpisodeOrChapter.setOnClickListener { cancelTimer() }
+        binding.sleepTimeSettings.setOnClickListener {
+            close()
+            eventHorizon.track(PlayerSleepTimerSettingsTappedEvent)
+            val fragment = PlaybackSettingsFragment().apply {
+                arguments = Bundle().apply {
+                    putBoolean(SCROLL_TO_SLEEP_TIMER, true)
+                }
+            }
+            val fragmentHostListener = (activity as? FragmentHostListener)
+            fragmentHostListener?.apply {
+                closePlayer() // Closes player if open
+                openTab(VR.id.navigation_profile)
+                addFragment(SettingsFragment())
+                addFragment(fragment)
+            }
+        }
+
+        binding.customStepperComposeView.setContentWithViewCompositionStrategy {
+            AppTheme(Theme.ThemeType.DARK) {
+                NumberStepper(
+                    onMinusClick = {
+                        minusButtonClicked()
+                    },
+                    onPlusClick = {
+                        plusButtonClicked()
+                    },
+                    minusContentDescription = LR.string.player_sleep_custom_minus,
+                    plusContentDescription = LR.string.player_sleep_custom_plus,
+                )
+            }
+        }
+
+        binding.endOfChapterStepperComposeView.setContentWithViewCompositionStrategy {
+            AppTheme(Theme.ThemeType.DARK) {
+                NumberStepper(
+                    onMinusClick = {
+                        minusEndOfChapterButtonClicked()
+                    },
+                    onPlusClick = {
+                        plusEndOfChapterButtonClicked()
+                    },
+                    minusContentDescription = LR.string.player_sleep_chapter_minus,
+                    plusContentDescription = LR.string.player_sleep_chapter_plus,
+                )
+            }
+        }
+
+        binding.endOfEpisodeStepperComposeView.setContentWithViewCompositionStrategy {
+            AppTheme(Theme.ThemeType.DARK) {
+                NumberStepper(
+                    onMinusClick = {
+                        minusEndOfEpisodeButtonClicked()
+                    },
+                    onPlusClick = {
+                        plusEndOfEpisodeButtonClicked()
+                    },
+                    minusContentDescription = LR.string.player_sleep_episode_minus,
+                    plusContentDescription = LR.string.player_sleep_episode_plus,
+                )
+            }
+        }
+
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        viewModel.sleepTimeLeftText.observe(viewLifecycleOwner) { sleepTime ->
+            binding?.sleepTime?.text = sleepTime
+        }
+
+        viewModel.sleepCustomTimeText.observe(viewLifecycleOwner) { customTimeText ->
+            binding?.labelCustom?.text = customTimeText
+        }
+
+        viewModel.sleepEndOfEpisodesText.observe(viewLifecycleOwner) { text ->
+            binding?.labelEndOfEpisode?.text = text
+        }
+
+        viewModel.sleepEndOfChaptersText.observe(viewLifecycleOwner) { text ->
+            binding?.labelEndOfChapter?.text = text
+        }
+
+        viewModel.sleepingInText.observe(viewLifecycleOwner) { text ->
+            binding?.sleepingInText?.text = text
+        }
+
+        viewModel.isSleepRunning
+            .combineLatest(viewModel.isSleepAtEndOfEpisodeOrChapter)
+            .observe(viewLifecycleOwner) { (isSleepRunning, isSleepAtEndOfEpisodeOrChapter) ->
+                binding?.sleepSetup?.isVisible = !isSleepRunning
+                binding?.sleepSetupChapter?.isVisible = !isSleepRunning && args.hasChapters
+
+                binding?.sleepRunning?.isVisible = isSleepRunning
+                binding?.sleepRunningChapter?.isVisible = isSleepRunning && !isSleepAtEndOfEpisodeOrChapter && args.hasChapters
+                binding?.sleepRunningEndOfEpisodeOrChapter?.isVisible = isSleepRunning && isSleepAtEndOfEpisodeOrChapter
+                binding?.sleepRunningTime?.isVisible = isSleepRunning && !isSleepAtEndOfEpisodeOrChapter
+            }
+
+        viewModel.playingEpisodeLive.observe(
+            viewLifecycleOwner,
+            Observer { (_, backgroundColor) ->
+                setDialogTint(backgroundColor)
+
+                val tintColor = theme.playerHighlightColor(viewModel.podcast)
+                val tintColorStateList = ColorStateList.valueOf(tintColor)
+                val binding = binding ?: return@Observer
+                binding.buttonAdd5Minute.strokeColor = tintColorStateList
+                binding.buttonAdd5Minute.setTextColor(tintColorStateList)
+                binding.buttonAdd1Minute.strokeColor = tintColorStateList
+                binding.buttonAdd1Minute.setTextColor(tintColorStateList)
+                binding.buttonCancelEndOfEpisodeOrChapter.strokeColor = tintColorStateList
+                binding.buttonCancelEndOfEpisodeOrChapter.setTextColor(tintColorStateList)
+                binding.buttonCancelTime.strokeColor = tintColorStateList
+                binding.buttonCancelTime.setTextColor(tintColorStateList)
+                binding.buttonEndOfChapter2.strokeColor = tintColorStateList
+                binding.buttonEndOfChapter2.setTextColor(tintColorStateList)
+                binding.buttonEndOfEpisode2.strokeColor = tintColorStateList
+                binding.buttonEndOfEpisode2.setTextColor(tintColorStateList)
+
+                binding.sleepAnimation.post {
+                    // this only works the second time it's called unless it's in a post
+                    binding.sleepAnimation.addValueCallback(KeyPath("**"), LottieProperty.COLOR) { tintColor }
+                }
+            },
+        )
+
+        (dialog as? BottomSheetDialog)?.behavior?.state = BottomSheetBehavior.STATE_EXPANDED
+    }
+
+    private fun addExtra5minute() {
+        viewModel.sleepTimerAddExtraMins(mins = 5)
+        eventHorizon.track(
+            PlayerSleepTimerExtendedEvent(
+                seconds = 5.minutes.inWholeSeconds,
+            ),
+        )
+    }
+
+    private fun addExtra1minute() {
+        viewModel.sleepTimerAddExtraMins(mins = 1)
+        eventHorizon.track(
+            PlayerSleepTimerExtendedEvent(
+                seconds = 1.minutes.inWholeSeconds,
+            ),
+        )
+    }
+
+    private fun startCustomTimer() {
+        viewModel.sleepTimerAfter(mins = viewModel.sleepCustomTimeInMinutes)
+        eventHorizon.track(
+            PlayerSleepTimerEnabledEvent(
+                seconds = viewModel.sleepCustomTimeInMinutes.minutes.inWholeSeconds,
+            ),
+        )
+        close()
+    }
+
+    private fun plusButtonClicked() {
+        if (viewModel.sleepCustomTimeInMinutes < 5) {
+            viewModel.sleepCustomTimeInMinutes += 1
+        } else {
+            viewModel.sleepCustomTimeInMinutes += 5
+        }
+    }
+
+    private fun plusEndOfEpisodeButtonClicked() {
+        viewModel.setSleepEndOfEpisodes(viewModel.getSleepEndOfEpisodes() + 1)
+    }
+
+    private fun plusEndOfChapterButtonClicked() {
+        viewModel.setSleepEndOfChapters(viewModel.getSleepEndOfChapters() + 1)
+    }
+
+    private fun minusButtonClicked() {
+        if (viewModel.sleepCustomTimeInMinutes <= 5) {
+            viewModel.sleepCustomTimeInMinutes -= 1
+        } else {
+            viewModel.sleepCustomTimeInMinutes -= 5
+        }
+    }
+
+    private fun minusEndOfEpisodeButtonClicked() {
+        val endOfEpisodes = viewModel.getSleepEndOfEpisodes()
+        if (endOfEpisodes > 1) {
+            viewModel.setSleepEndOfEpisodes(endOfEpisodes - 1)
+        }
+    }
+
+    private fun minusEndOfChapterButtonClicked() {
+        val endOfChapters = viewModel.getSleepEndOfChapters()
+        if (endOfChapters > 1) {
+            viewModel.setSleepEndOfChapters(endOfChapters - 1)
+        }
+    }
+
+    private fun startTimerEndOfEpisode(episodes: Int) {
+        viewModel.sleepTimerAfterEpisode(episodes)
+        close()
+    }
+
+    private fun startTimerEndOfChapter(chapters: Int) {
+        viewModel.sleepTimerAfterChapter(chapters)
+        close()
+    }
+
+    private fun startTimer(mins: Int) {
+        viewModel.sleepTimerAfter(mins = mins)
+        eventHorizon.track(
+            PlayerSleepTimerEnabledEvent(
+                seconds = mins.minutes.inWholeSeconds,
+            ),
+        )
+        close()
+    }
+
+    private fun cancelTimer() {
+        viewModel.cancelSleepTimer()
+        eventHorizon.track(PlayerSleepTimerCancelledEvent)
+        close()
+    }
+
+    private fun close() {
+        dismiss()
+    }
+
+    @Parcelize
+    private class Args(
+        val hasChapters: Boolean,
+    ) : Parcelable
+
+    companion object {
+        private const val NEW_INSTANCE_ARG = "SleepFragmentArgs"
+
+        fun newInstance(
+            hasChapters: Boolean,
+        ) = SleepFragment().apply {
+            arguments = Bundle().apply {
+                putParcelable(
+                    NEW_INSTANCE_ARG,
+                    Args(
+                        hasChapters = hasChapters,
+                    ),
+                )
+            }
+        }
+    }
+}

@@ -1,0 +1,284 @@
+package au.com.shiftyjelly.pocketcasts.repositories.playback.auto
+
+import android.content.ContentResolver
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.net.Uri
+import android.os.Bundle
+import androidx.annotation.DrawableRes
+import androidx.core.net.toUri
+import androidx.media.utils.MediaConstants.DESCRIPTION_EXTRAS_KEY_COMPLETION_PERCENTAGE
+import androidx.media.utils.MediaConstants.DESCRIPTION_EXTRAS_KEY_COMPLETION_STATUS
+import androidx.media.utils.MediaConstants.DESCRIPTION_EXTRAS_VALUE_COMPLETION_STATUS_FULLY_PLAYED
+import androidx.media.utils.MediaConstants.DESCRIPTION_EXTRAS_VALUE_COMPLETION_STATUS_NOT_PLAYED
+import androidx.media.utils.MediaConstants.DESCRIPTION_EXTRAS_VALUE_COMPLETION_STATUS_PARTIALLY_PLAYED
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import au.com.shiftyjelly.pocketcasts.localization.helper.RelativeDateFormatter
+import au.com.shiftyjelly.pocketcasts.localization.helper.tryToLocaliseFilters
+import au.com.shiftyjelly.pocketcasts.models.entity.BaseEpisode
+import au.com.shiftyjelly.pocketcasts.models.entity.Folder
+import au.com.shiftyjelly.pocketcasts.models.entity.Podcast
+import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
+import au.com.shiftyjelly.pocketcasts.models.entity.UserEpisode
+import au.com.shiftyjelly.pocketcasts.models.type.EpisodePlayingStatus
+import au.com.shiftyjelly.pocketcasts.repositories.extensions.autoDrawableId
+import au.com.shiftyjelly.pocketcasts.repositories.extensions.automotiveDrawableId
+import au.com.shiftyjelly.pocketcasts.repositories.extensions.getArtworkUrl
+import au.com.shiftyjelly.pocketcasts.repositories.extensions.getSummaryText
+import au.com.shiftyjelly.pocketcasts.repositories.images.PocketCastsImageRequestFactory
+import au.com.shiftyjelly.pocketcasts.repositories.playback.EXTRA_CONTENT_STYLE_GROUP_TITLE_HINT
+import au.com.shiftyjelly.pocketcasts.repositories.playback.EpisodeFileMetadata
+import au.com.shiftyjelly.pocketcasts.repositories.playback.FOLDER_ROOT_PREFIX
+import au.com.shiftyjelly.pocketcasts.repositories.playlist.Playlist
+import au.com.shiftyjelly.pocketcasts.repositories.playlist.PlaylistPreview
+import au.com.shiftyjelly.pocketcasts.utils.Util
+import coil3.executeBlocking
+import coil3.imageLoader
+import coil3.toBitmap
+import java.io.File
+import au.com.shiftyjelly.pocketcasts.images.R as IR
+import au.com.shiftyjelly.pocketcasts.localization.R as LR
+
+data class AutoMediaId(
+    val episodeId: String,
+    val sourceId: String?,
+) {
+    companion object {
+        private const val DIVIDER = "#"
+        fun fromMediaId(mediaId: String): AutoMediaId {
+            val components = mediaId.split(DIVIDER)
+            return if (components.size == 2) {
+                AutoMediaId(components[1], components[0])
+            } else {
+                AutoMediaId(mediaId, null)
+            }
+        }
+    }
+
+    fun toMediaId(): String {
+        return "$sourceId$DIVIDER$episodeId"
+    }
+}
+
+object AutoConverter {
+    private const val EXTRA_DOWNLOAD_STATUS = "android.media.extra.DOWNLOAD_STATUS"
+    private const val STATUS_DOWNLOADED = 2L
+    private const val STATUS_NOT_DOWNLOADED = 0L
+
+    fun convertEpisodeToMediaItem(context: Context, episode: BaseEpisode, parentPodcast: Podcast, useEpisodeArtwork: Boolean, groupTrailers: Boolean = false, sourceId: String = parentPodcast.uuid): MediaItem {
+        val localUri = getPodcastArtworkUri(parentPodcast, episode, context, useEpisodeArtwork)
+
+        val extras = extrasForEpisode(episode)
+        if (groupTrailers) {
+            val groupTitle = if (episode is PodcastEpisode && episode.episodeType is PodcastEpisode.EpisodeType.Trailer) LR.string.episode_trailer else LR.string.episodes
+            extras.putString(EXTRA_CONTENT_STYLE_GROUP_TITLE_HINT, context.resources.getString(groupTitle))
+        }
+        val mediaId = AutoMediaId(episode.uuid, sourceId).toMediaId()
+
+        val metadata = MediaMetadata.Builder()
+            .setTitle(episode.title)
+            .setSubtitle(episode.getSummaryText(dateFormatter = RelativeDateFormatter(context), tintColor = Color.WHITE, showDuration = true, context = context))
+            .setDescription(episode.episodeDescription)
+            .setArtworkUri(localUri)
+            .setIsBrowsable(false)
+            .setIsPlayable(true)
+            .setExtras(extras)
+            .build()
+
+        return MediaItem.Builder()
+            .setMediaId(mediaId)
+            .setMediaMetadata(metadata)
+            .build()
+    }
+
+    fun convertPodcastToMediaItem(podcast: Podcast, context: Context, useEpisodeArtwork: Boolean): MediaItem? {
+        return try {
+            val localUri = getPodcastArtworkUri(podcast = podcast, episode = null, context = context, useEpisodeArtwork = useEpisodeArtwork)
+
+            val metadata = MediaMetadata.Builder()
+                .setTitle(podcast.title)
+                .setArtworkUri(localUri)
+                .setIsBrowsable(true)
+                .setIsPlayable(false)
+                .build()
+
+            MediaItem.Builder()
+                .setMediaId(podcast.uuid)
+                .setMediaMetadata(metadata)
+                .build()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun convertFolderToMediaItem(context: Context, folder: Folder): MediaItem? {
+        return try {
+            val localUri = getBitmapUriForFolder(context, folder)
+
+            val metadata = MediaMetadata.Builder()
+                .setTitle(folder.name)
+                .setArtworkUri(localUri)
+                .setIsBrowsable(true)
+                .setIsPlayable(false)
+                .build()
+
+            MediaItem.Builder()
+                .setMediaId(FOLDER_ROOT_PREFIX + folder.uuid)
+                .setMediaMetadata(metadata)
+                .build()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun convertPlaylistToMediaItem(context: Context, playlist: PlaylistPreview): MediaItem {
+        val metadata = MediaMetadata.Builder()
+            .setTitle(playlist.title.tryToLocaliseFilters(context.resources))
+            .setArtworkUri(getPlaylistBitmapUri(playlist, context))
+            .setIsBrowsable(true)
+            .setIsPlayable(false)
+            .build()
+
+        return MediaItem.Builder()
+            .setMediaId(playlist.uuid)
+            .setMediaMetadata(metadata)
+            .build()
+    }
+
+    fun getPodcastArtworkUri(podcast: Podcast?, episode: BaseEpisode?, context: Context, useEpisodeArtwork: Boolean): Uri? {
+        val artworkUri = when (episode) {
+            is PodcastEpisode -> if (useEpisodeArtwork) {
+                episode.imageUrl ?: EpisodeFileMetadata.artworkCacheFile(context, episode.uuid).takeIf(File::exists)?.path ?: podcast?.getArtworkUrl(480)
+            } else {
+                podcast?.getArtworkUrl(480)
+            }
+
+            is UserEpisode -> if (useEpisodeArtwork) {
+                EpisodeFileMetadata.artworkCacheFile(context, episode.uuid).takeIf(File::exists)?.path ?: episode.artworkUrl
+            } else {
+                episode.artworkUrl
+            }
+
+            null -> {
+                podcast?.getArtworkUrl(480)
+            }
+        }?.toUri()
+
+        if (artworkUri == null) {
+            return null
+        }
+
+        return getArtworkUriForContentProvider(artworkUri, context)
+    }
+
+    fun getPodcastArtworkBitmap(episode: BaseEpisode, context: Context, useEpisodeArtwork: Boolean): Bitmap? {
+        val imageRequestFactory = PocketCastsImageRequestFactory(
+            context,
+            isDarkTheme = true,
+            size = 480,
+            placeholderType = PocketCastsImageRequestFactory.PlaceholderType.Small,
+        )
+
+        val request = imageRequestFactory.create(episode, useEpisodeArtwork)
+        return context.imageLoader.executeBlocking(request).image?.toBitmap() ?: loadPlaceholderBitmap(imageRequestFactory, context)
+    }
+
+    private fun loadPlaceholderBitmap(imageRequestFactory: PocketCastsImageRequestFactory, context: Context): Bitmap? {
+        val request = imageRequestFactory.createForPodcast(podcastUuid = null)
+        return context.imageLoader.executeBlocking(request).image?.toBitmap()
+    }
+
+    private fun getBitmapUriForFolder(context: Context, folder: Folder?): Uri? {
+        if (folder == null) return null
+
+        return getBitmapUri(drawable = folder.automotiveDrawableId, context = context)
+    }
+
+    /**
+     * This creates a Uri that will call the AlbumArtContentProvider to download and cache the artwork
+     */
+    fun getArtworkUriForContentProvider(podcastArtUri: Uri, context: Context): Uri {
+        return podcastArtUri.asAlbumArtContentUri(context)
+    }
+
+    fun getPodcastsBitmapUri(context: Context): Uri {
+        return getBitmapUri(drawable = IR.drawable.auto_tab_podcasts, context = context)
+    }
+
+    fun getPlaylistBitmapUri(playlist: PlaylistPreview, context: Context): Uri {
+        val icon = playlist.icon
+        val nonDefaultIcon = icon.takeIf { it.id != 0 }
+
+        val drawableId = when (playlist.type) {
+            Playlist.Type.Manual -> if (Util.isAutomotive(context)) {
+                IR.drawable.ic_automotive_playlist_manual
+            } else {
+                IR.drawable.ic_auto_playlist_manual
+            }
+
+            Playlist.Type.Smart -> if (Util.isAutomotive(context)) {
+                nonDefaultIcon?.automotiveDrawableId ?: IR.drawable.ic_automotive_playlist_smart
+            } else {
+                nonDefaultIcon?.autoDrawableId ?: IR.drawable.ic_auto_playlist_smart
+            }
+        }
+        return getBitmapUri(drawableId, context)
+    }
+
+    fun getDownloadsBitmapUri(context: Context): Uri {
+        return getBitmapUri(drawable = IR.drawable.auto_filter_downloaded, context = context)
+    }
+
+    fun getFilesBitmapUri(context: Context): Uri {
+        return getBitmapUri(drawable = IR.drawable.auto_files, context = context)
+    }
+
+    /**
+     * Convert a drawable into a Uri
+     * Use the drawable id so Proguard doesn't remove the asset in the production build.
+     */
+    fun getBitmapUri(@DrawableRes drawable: Int, context: Context): Uri {
+        val resources = context.resources
+        // This is an example of the URI android.resource://au.com.shiftyjelly.pocketcasts/drawable/auto_folder_01
+        return Uri.Builder()
+            .scheme(ContentResolver.SCHEME_ANDROID_RESOURCE) // android.resource
+            .authority(resources.getResourcePackageName(drawable)) // au.com.shiftyjelly.pocketcasts
+            .appendPath(resources.getResourceTypeName(drawable)) // drawable
+            .appendPath(resources.getResourceEntryName(drawable)) // auto_folder_01
+            .build()
+    }
+
+    private fun extrasForEpisode(episode: BaseEpisode): Bundle {
+        val downloadStatus = if (episode.isDownloaded) STATUS_DOWNLOADED else STATUS_NOT_DOWNLOADED
+
+        val completionStatus: Int
+        val completionPercentage: Double
+        when (episode.playingStatus) {
+            EpisodePlayingStatus.NOT_PLAYED -> {
+                completionStatus = DESCRIPTION_EXTRAS_VALUE_COMPLETION_STATUS_NOT_PLAYED
+                completionPercentage = 0.0
+            }
+
+            EpisodePlayingStatus.IN_PROGRESS -> {
+                completionStatus = DESCRIPTION_EXTRAS_VALUE_COMPLETION_STATUS_PARTIALLY_PLAYED
+                completionPercentage = if (episode.duration == 0.0) 0.0 else (episode.playedUpTo / episode.duration).coerceIn(0.0, 1.0)
+            }
+
+            EpisodePlayingStatus.COMPLETED -> {
+                completionStatus = DESCRIPTION_EXTRAS_VALUE_COMPLETION_STATUS_FULLY_PLAYED
+                completionPercentage = 1.0
+            }
+        }
+
+        return Bundle().apply {
+            putLong(EXTRA_DOWNLOAD_STATUS, downloadStatus)
+            putInt(DESCRIPTION_EXTRAS_KEY_COMPLETION_STATUS, completionStatus)
+            putDouble(
+                DESCRIPTION_EXTRAS_KEY_COMPLETION_PERCENTAGE,
+                completionPercentage,
+            )
+        }
+    }
+}

@@ -1,0 +1,136 @@
+package au.com.shiftyjelly.pocketcasts.player.view.bookmark
+
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import au.com.shiftyjelly.pocketcasts.models.entity.Bookmark
+import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkManager
+import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
+import au.com.shiftyjelly.pocketcasts.repositories.podcast.UserEpisodeManager
+import au.com.shiftyjelly.pocketcasts.utils.featureflag.Feature
+import au.com.shiftyjelly.pocketcasts.utils.featureflag.FeatureFlag
+import com.automattic.eventhorizon.BookmarkEditFormDismissedEvent
+import com.automattic.eventhorizon.BookmarkEditFormShownEvent
+import com.automattic.eventhorizon.BookmarkEditFormSubmittedEvent
+import com.automattic.eventhorizon.BookmarkSourceType
+import com.automattic.eventhorizon.EventHorizon
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import timber.log.Timber
+
+@HiltViewModel
+class BookmarkViewModel
+@Inject constructor(
+    private val episodeManager: EpisodeManager,
+    private val userEpisodeManager: UserEpisodeManager,
+    private val bookmarkManager: BookmarkManager,
+    private val eventHorizon: EventHorizon,
+) : ViewModel(),
+    CoroutineScope {
+
+    private lateinit var arguments: BookmarkArguments
+
+    companion object {
+        private const val DEFAULT_TITLE = "Bookmark"
+
+        private fun buildSelectedTextFieldValue(text: String): TextFieldValue {
+            return TextFieldValue(text = text, selection = TextRange(0, text.length))
+        }
+    }
+
+    data class UiState(
+        val bookmarkUuid: String? = null,
+        val title: TextFieldValue = buildSelectedTextFieldValue(DEFAULT_TITLE),
+    ) {
+        val isNewBookmark: Boolean = bookmarkUuid == null
+    }
+    override val coroutineContext: CoroutineContext
+        get() = Dispatchers.Default
+
+    private var mutableUiState: MutableStateFlow<UiState> = MutableStateFlow(UiState())
+    val uiState: StateFlow<UiState> = mutableUiState
+
+    fun load(arguments: BookmarkArguments) {
+        this.arguments = arguments
+        val bookmarkUuid = arguments.bookmarkUuid
+        mutableUiState.value = mutableUiState.value.copy(
+            bookmarkUuid = bookmarkUuid,
+        )
+        viewModelScope.launch {
+            // load the existing bookmark
+            val bookmark = if (bookmarkUuid == null) {
+                val episode = episodeManager.findEpisodeByUuid(arguments.episodeUuid) ?: return@launch
+                bookmarkManager.findByEpisodeTime(
+                    episode = episode,
+                    timeSecs = arguments.timeSecs,
+                )
+            } else {
+                bookmarkManager.findBookmark(bookmarkUuid)
+            }
+            if (bookmark != null) {
+                mutableUiState.value = mutableUiState.value.copy(
+                    bookmarkUuid = bookmark.uuid,
+                    title = buildSelectedTextFieldValue(bookmark.title),
+                )
+            }
+        }
+    }
+
+    fun changeTitle(title: TextFieldValue) {
+        // limit the title to 100 characters
+        val titleLimited = title.copy(text = title.text.take(100))
+        mutableUiState.value = mutableUiState.value.copy(title = titleLimited)
+    }
+
+    fun saveBookmark(onSaved: (Bookmark, isExistingBookmark: Boolean) -> Unit) {
+        launch {
+            try {
+                val state = uiState.value
+                val bookmarkUuid = state.bookmarkUuid
+                val episodeUuid = arguments.episodeUuid
+                val isExistingBookmark = bookmarkUuid != null
+                val bookmark = if (bookmarkUuid == null) {
+                    val episode = episodeManager.findByUuid(episodeUuid)
+                        ?: userEpisodeManager.findEpisodeByUuid(episodeUuid)
+                        ?: return@launch
+                    bookmarkManager.add(
+                        episode = episode,
+                        timeSecs = arguments.timeSecs,
+                        title = state.title.text,
+                        creationSource = BookmarkSourceType.Player,
+                    )
+                } else {
+                    bookmarkManager.updateTitle(bookmarkUuid, state.title.text)
+                    bookmarkManager.findBookmark(bookmarkUuid)
+                }
+                if (bookmark != null) {
+                    onSaved(bookmark, isExistingBookmark)
+                    if (!isExistingBookmark && FeatureFlag.isEnabled(Feature.SMART_BOOKMARKS)) {
+                        bookmarkManager.enrichBookmark(bookmark)
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e)
+            }
+        }
+    }
+
+    fun onShown() {
+        eventHorizon.track(BookmarkEditFormShownEvent)
+    }
+
+    fun onClose() {
+        eventHorizon.track(BookmarkEditFormDismissedEvent)
+    }
+
+    fun onSubmitBookmark() {
+        eventHorizon.track(BookmarkEditFormSubmittedEvent)
+    }
+}

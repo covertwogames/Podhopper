@@ -1,0 +1,76 @@
+package au.com.shiftyjelly.pocketcasts.wear.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.wear.compose.foundation.lazy.items
+import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.Text
+import au.com.shiftyjelly.pocketcasts.preferences.model.ArtworkConfiguration.Element
+import au.com.shiftyjelly.pocketcasts.wear.ui.component.EpisodeChip
+import au.com.shiftyjelly.pocketcasts.wear.ui.component.ScreenHeaderChip
+import com.google.android.horologist.compose.layout.ScalingLazyColumn
+import com.google.android.horologist.compose.layout.ScalingLazyColumnState
+import au.com.shiftyjelly.pocketcasts.localization.R as LR
+
+object FilesScreen {
+    const val ROUTE = "files_screen"
+}
+
+@Composable
+fun FilesScreen(
+    columnState: ScalingLazyColumnState,
+    viewModel: FilesViewModel = hiltViewModel(),
+    navigateToEpisode: (episodeUuid: String) -> Unit,
+) {
+    val userEpisodesState = viewModel.userEpisodes.collectAsState(null)
+    val userEpisodes = userEpisodesState.value
+    val artworkCollection by viewModel.artworkConfiguration.collectAsState()
+
+    when {
+        // Show nothing while screen is loading
+        userEpisodes == null -> return
+
+        userEpisodes.isEmpty() -> EmptyState()
+
+        else -> {
+            ScalingLazyColumn(
+                columnState = columnState,
+            ) {
+                item { ScreenHeaderChip(LR.string.profile_navigation_files) }
+
+                items(userEpisodes) { episode ->
+                    EpisodeChip(
+                        episode = episode,
+                        useEpisodeArtwork = artworkCollection.useEpisodeArtwork(Element.Files),
+                        onClick = { navigateToEpisode(episode.uuid) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyState() {
+    Column(
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        Text(
+            text = stringResource(LR.string.profile_cloud_no_files_uploaded),
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colors.onPrimary,
+            style = MaterialTheme.typography.title3,
+        )
+    }
+}

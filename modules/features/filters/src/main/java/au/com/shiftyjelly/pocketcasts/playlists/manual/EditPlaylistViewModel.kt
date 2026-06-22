@@ -1,0 +1,97 @@
+package au.com.shiftyjelly.pocketcasts.playlists.manual
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import au.com.shiftyjelly.pocketcasts.analytics.AnalyticsTracker
+import au.com.shiftyjelly.pocketcasts.models.to.PlaylistEpisode
+import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.preferences.model.ArtworkConfiguration
+import au.com.shiftyjelly.pocketcasts.repositories.playlist.PlaylistManager
+import com.automattic.eventhorizon.EpisodeRemovedFromListEvent
+import com.automattic.eventhorizon.EventHorizon
+import com.automattic.eventhorizon.FilterManualEpisodesRearrangedEvent
+import com.automattic.eventhorizon.PlaylistRemoveEpisodeSourceType
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+@HiltViewModel(assistedFactory = EditPlaylistViewModel.Factory::class)
+class EditPlaylistViewModel @AssistedInject constructor(
+    @Assisted private val playlistUuid: String,
+    private val playlistManager: PlaylistManager,
+    private val settings: Settings,
+    private val eventHorizon: EventHorizon,
+) : ViewModel() {
+    private var isOrderChanged = false
+    private var _episodes by mutableStateOf(emptyList<PlaylistEpisode>())
+    val episodes get() = _episodes
+
+    val useEpisodeArtwork = settings.artworkConfiguration.flow.map { config ->
+        config.useEpisodeArtwork(ArtworkConfiguration.Element.Filters)
+    }
+
+    init {
+        viewModelScope.launch {
+            // Add a small delay to prevent rendering all data while the screen is animating
+            delay(350)
+            val playlist = playlistManager.manualPlaylistFlow(playlistUuid).first()
+            _episodes = playlist?.episodes.orEmpty()
+        }
+    }
+
+    fun deleteEpisode(episodeUuid: String, podcastUuid: String) {
+        _episodes = _episodes.filter { it.uuid != episodeUuid }
+        viewModelScope.launch {
+            playlistManager.deleteManualEpisode(playlistUuid, episodeUuid)
+
+            val playlistName = playlistManager.findPlaylistPreview(playlistUuid)?.title
+            eventHorizon.track(
+                EpisodeRemovedFromListEvent(
+                    playlistName = playlistName ?: AnalyticsTracker.INVALID_OR_NULL_VALUE,
+                    playlistUuid = playlistUuid,
+                    episodeUuid = episodeUuid,
+                    podcastUuid = podcastUuid,
+                    source = PlaylistRemoveEpisodeSourceType.PlaylistRearrange,
+                ),
+            )
+        }
+    }
+
+    fun updateEpisodesOrder(episodes: List<PlaylistEpisode>) {
+        this._episodes = episodes
+        isOrderChanged = true
+    }
+
+    fun persistEpisodesOrder() {
+        if (isOrderChanged) {
+            viewModelScope.launch {
+                withContext(NonCancellable) {
+                    eventHorizon.track(FilterManualEpisodesRearrangedEvent)
+                    val sortedUuids = withContext(Dispatchers.Default) {
+                        _episodes.map(PlaylistEpisode::uuid)
+                    }
+                    playlistManager.sortManualEpisodes(playlistUuid, sortedUuids)
+                }
+            }
+        }
+    }
+
+    @AssistedFactory
+    interface Factory {
+        fun create(playlistUuid: String): EditPlaylistViewModel
+    }
+}

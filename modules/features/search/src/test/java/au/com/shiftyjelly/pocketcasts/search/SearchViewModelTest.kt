@@ -1,0 +1,62 @@
+package au.com.shiftyjelly.pocketcasts.search
+
+import au.com.shiftyjelly.pocketcasts.analytics.testing.TestEventSink
+import au.com.shiftyjelly.pocketcasts.models.entity.Podcast
+import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
+import au.com.shiftyjelly.pocketcasts.repositories.searchhistory.SearchHistoryManager
+import au.com.shiftyjelly.pocketcasts.sharedtest.MainCoroutineRule
+import com.automattic.eventhorizon.EventHorizon
+import java.util.UUID
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.mockito.Mock
+import org.mockito.junit.MockitoJUnitRunner
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(MockitoJUnitRunner::class)
+class SearchViewModelTest {
+    @get:Rule
+    val coroutineRule = MainCoroutineRule()
+
+    @Mock
+    private lateinit var searchHandler: SearchHandler
+
+    @Mock
+    private lateinit var searchHistoryManager: SearchHistoryManager
+
+    @Mock
+    private lateinit var podcastManager: PodcastManager
+
+    private lateinit var viewModel: SearchViewModel
+
+    @Before
+    fun setUp() {
+        viewModel = SearchViewModel(
+            searchHandler = searchHandler,
+            searchHistoryManager = searchHistoryManager,
+            podcastManager = podcastManager,
+            eventHorizon = EventHorizon(TestEventSink()),
+        )
+    }
+
+    @Test
+    fun `given podcast is subscribed, when podcast subscribe plus icon clicked, then podcast is subscribed`() {
+        val uuid = UUID.randomUUID().toString()
+        viewModel.onSubscribeToPodcast(Podcast(uuid = uuid, isSubscribed = false))
+
+        verify(podcastManager).subscribeToPodcast(podcastUuid = uuid, sync = true)
+    }
+
+    @Test
+    fun `given podcast not subscribed, when podcast subscribe check icon clicked, then podcast remains subscribed`() {
+        val uuid = UUID.randomUUID().toString()
+        viewModel.onSubscribeToPodcast(Podcast(uuid = uuid, isSubscribed = true))
+
+        verify(podcastManager, never()).subscribeToPodcast(podcastUuid = uuid, sync = true)
+    }
+}

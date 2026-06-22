@@ -1,0 +1,95 @@
+package au.com.shiftyjelly.pocketcasts.reimagine.episode
+
+import app.cash.turbine.test
+import au.com.shiftyjelly.pocketcasts.analytics.SourceView
+import au.com.shiftyjelly.pocketcasts.analytics.testing.TestEventSink
+import au.com.shiftyjelly.pocketcasts.models.entity.Podcast
+import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
+import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.preferences.UserSetting
+import au.com.shiftyjelly.pocketcasts.preferences.model.ArtworkConfiguration
+import au.com.shiftyjelly.pocketcasts.reimagine.episode.ShareEpisodeViewModel.UiState
+import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
+import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
+import au.com.shiftyjelly.pocketcasts.sharedtest.MainCoroutineRule
+import com.automattic.eventhorizon.EventHorizon
+import com.automattic.eventhorizon.ShareActionMediaType
+import com.automattic.eventhorizon.ShareScreenShownEvent
+import com.automattic.eventhorizon.SourceViewType
+import java.util.Date
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
+
+@ExperimentalCoroutinesApi
+class ShareEpisodeViewModelTest {
+    @get:Rule
+    val coroutineRule = MainCoroutineRule()
+
+    private val eventSink = TestEventSink()
+    private val episodeManager = mock<EpisodeManager>()
+    private val podcastManager = mock<PodcastManager>()
+    private val settings = mock<Settings>()
+
+    private val episode = PodcastEpisode(uuid = "episode-id", podcastUuid = "podcast-id", publishedDate = Date())
+    private val podcast = Podcast(uuid = "podcast-id", title = "Podcast Title")
+
+    private lateinit var viewModel: ShareEpisodeViewModel
+
+    @Before
+    fun setUp() {
+        whenever(episodeManager.findByUuidFlow("episode-id")).thenReturn(flowOf(episode))
+        whenever(podcastManager.podcastByEpisodeUuidFlow("episode-id")).thenReturn(flowOf(podcast))
+        val artworkSetting = mock<UserSetting<ArtworkConfiguration>>()
+        whenever(artworkSetting.flow).thenReturn(MutableStateFlow(ArtworkConfiguration(useEpisodeArtwork = true)))
+        whenever(settings.artworkConfiguration).thenReturn(artworkSetting)
+
+        viewModel = ShareEpisodeViewModel(
+            podcast.uuid,
+            episode.uuid,
+            SourceView.PLAYER,
+            episodeManager,
+            podcastManager,
+            settings,
+            EventHorizon(eventSink),
+        )
+    }
+
+    @Test
+    fun `get UI state`() = runTest {
+        viewModel.uiState.test {
+            assertEquals(
+                UiState(
+                    podcast = podcast,
+                    episode = episode,
+                    useEpisodeArtwork = true,
+                ),
+                awaitItem(),
+            )
+        }
+    }
+
+    @Test
+    fun `track screen show event`() = runTest {
+        viewModel.onScreenShown()
+
+        val event = eventSink.pollEvent()
+
+        assertEquals(
+            ShareScreenShownEvent(
+                type = ShareActionMediaType.Episode,
+                podcastUuid = "podcast-id",
+                episodeUuid = "episode-id",
+                source = SourceViewType.Player,
+            ),
+            event,
+        )
+    }
+}

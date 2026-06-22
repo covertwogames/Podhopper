@@ -1,0 +1,481 @@
+package au.com.shiftyjelly.pocketcasts.wear.ui.episode
+
+import android.app.Application
+import android.content.Context
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.compose.ui.graphics.Color
+import androidx.core.text.parseAsHtml
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
+import androidx.palette.graphics.Palette
+import au.com.shiftyjelly.pocketcasts.analytics.SourceView
+import au.com.shiftyjelly.pocketcasts.coroutines.di.ApplicationScope
+import au.com.shiftyjelly.pocketcasts.coroutines.flow.combine
+import au.com.shiftyjelly.pocketcasts.models.entity.BaseEpisode
+import au.com.shiftyjelly.pocketcasts.models.entity.Podcast
+import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
+import au.com.shiftyjelly.pocketcasts.models.entity.UserEpisode
+import au.com.shiftyjelly.pocketcasts.models.type.EpisodeDownloadStatus
+import au.com.shiftyjelly.pocketcasts.models.type.EpisodePlayingStatus
+import au.com.shiftyjelly.pocketcasts.profile.cloud.AddFileActivity
+import au.com.shiftyjelly.pocketcasts.repositories.di.DefaultDispatcher
+import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadProgressCache
+import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
+import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
+import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
+import au.com.shiftyjelly.pocketcasts.repositories.playback.UpNextPosition
+import au.com.shiftyjelly.pocketcasts.repositories.playback.UpNextQueue
+import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
+import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
+import au.com.shiftyjelly.pocketcasts.repositories.podcast.UserEpisodeManager
+import au.com.shiftyjelly.pocketcasts.repositories.shownotes.ShowNotesManager
+import au.com.shiftyjelly.pocketcasts.servers.shownotes.ShowNotesState
+import au.com.shiftyjelly.pocketcasts.ui.theme.Theme
+import au.com.shiftyjelly.pocketcasts.ui.theme.ThemeColor
+import au.com.shiftyjelly.pocketcasts.views.helper.CloudDeleteHelper
+import au.com.shiftyjelly.pocketcasts.wear.ui.player.AudioOutputSelectorHelper
+import au.com.shiftyjelly.pocketcasts.wear.ui.player.StreamingConfirmationScreen
+import coil3.ImageLoader
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.request.allowHardware
+import coil3.toBitmap
+import com.automattic.eventhorizon.EpisodeArchivedEvent
+import com.automattic.eventhorizon.EpisodeMarkedAsPlayedEvent
+import com.automattic.eventhorizon.EpisodeMarkedAsUnplayedEvent
+import com.automattic.eventhorizon.EpisodeUnarchivedEvent
+import com.automattic.eventhorizon.EventHorizon
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.rx2.asFlow
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import timber.log.Timber
+import au.com.shiftyjelly.pocketcasts.images.R as IR
+import au.com.shiftyjelly.pocketcasts.localization.R as LR
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@HiltViewModel
+class EpisodeViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
+    private val downloadQueue: DownloadQueue,
+    private val downloadProgressCache: DownloadProgressCache,
+    private val eventHorizon: EventHorizon,
+    private val episodeManager: EpisodeManager,
+    private val playbackManager: PlaybackManager,
+    private val podcastManager: PodcastManager,
+    private val showNotesManager: ShowNotesManager,
+    theme: Theme,
+    @ApplicationContext appContext: Context,
+    @ApplicationScope private val applicationScope: CoroutineScope,
+    private val audioOutputSelectorHelper: AudioOutputSelectorHelper,
+    private val userEpisodeManager: UserEpisodeManager,
+    @DefaultDispatcher private val backgroundDispatcher: CoroutineDispatcher,
+) : AndroidViewModel(appContext as Application) {
+    private var playAttempt: Job? = null
+    private val sourceView = SourceView.EPISODE_DETAILS
+
+    sealed class State {
+        data class Loaded(
+            val episode: BaseEpisode,
+            val podcast: Podcast?,
+            val isPlayingEpisode: Boolean,
+            val inUpNext: Boolean,
+            val tintColor: Color?,
+            val downloadProgress: Float? = null,
+            val showNotesText: String?,
+            val errorData: ErrorData?,
+        ) : State() {
+            data class ErrorData(
+                @StringRes val errorTitleRes: Int,
+                @DrawableRes val errorIconRes: Int,
+                val errorDescription: String?,
+            )
+        }
+
+        object Empty : State()
+    }
+
+    data class UpNextOption(
+        @DrawableRes val iconRes: Int,
+        @StringRes val titleRes: Int,
+        val onClick: () -> Unit,
+    )
+
+    val upNextOptions = listOf(
+        UpNextOption(
+            iconRes = IR.drawable.ic_upnext_playnext,
+            titleRes = LR.string.play_next,
+            onClick = { addToUpNext(UpNextPosition.NEXT) },
+        ),
+        UpNextOption(
+            iconRes = IR.drawable.ic_upnext_playlast,
+            titleRes = LR.string.play_last,
+            onClick = { addToUpNext(UpNextPosition.LAST) },
+        ),
+    )
+
+    val stateFlow: StateFlow<State>
+
+    // SharedFlow used for one shot operation like navigating to the Now Playing screen
+    private val _showNowPlaying = MutableSharedFlow<Boolean>()
+    val showNowPlaying = _showNowPlaying.asSharedFlow()
+
+    init {
+        val episodeUuid = savedStateHandle.get<String>(EpisodeScreenFlow.EPISODE_UUID_ARGUMENT)
+            ?: throw IllegalStateException("EpisodeViewModel must have an episode uuid in the SavedStateHandle")
+
+        val episodeFlow = episodeManager.findEpisodeByUuidFlow(episodeUuid)
+
+        val podcastFlow = episodeFlow
+            .filterIsInstance<PodcastEpisode>()
+            .map { podcastManager.findPodcastByUuid(it.podcastUuid) }
+
+        val isPlayingEpisodeFlow = playbackManager.playbackStateRelay.asFlow()
+            .filter { it.episodeUuid == episodeUuid }
+            .map { it.isPlaying }
+
+        val inUpNextFlow = playbackManager.upNextQueue.changesObservable.asFlow()
+
+        val downloadProgressFlow = downloadProgressCache
+            .progressFlow(episodeUuid)
+            .map { progress -> (progress?.percentage?.toFloat() ?: 0f) / 100 }
+            .distinctUntilChanged()
+
+        val showNotesTextFlow = episodeFlow
+            .flatMapLatest {
+                when (it) {
+                    is PodcastEpisode -> showNotesManager.loadShowNotesFlow(
+                        podcastUuid = it.podcastUuid,
+                        episodeUuid = it.uuid,
+                    )
+
+                    // user episodes don't have show notes
+                    is UserEpisode -> flowOf(ShowNotesState.NotFound)
+                }
+            }
+            // Parse the show notes HTML off the main thread, and only when the notes change, to avoid blocking the UI.
+            .map { showNotesState -> parseShowNotes(showNotesState) }
+            .flowOn(backgroundDispatcher)
+
+        stateFlow = combine(
+            episodeFlow,
+            // Emitting a value "onStart" for the flows that shouldn't block the UI
+            podcastFlow.onStart { emit(null) },
+            isPlayingEpisodeFlow.onStart { emit(false) },
+            inUpNextFlow,
+            downloadProgressFlow,
+            showNotesTextFlow,
+        ) { episode, podcast, isPlayingEpisode, upNext, downloadProgress, showNotesText ->
+
+            State.Loaded(
+                episode = episode,
+                podcast = podcast,
+                isPlayingEpisode = isPlayingEpisode,
+                downloadProgress = downloadProgress,
+                inUpNext = isInUpNext(upNext, episode),
+                tintColor = getTintColor(episode, podcast, theme),
+                showNotesText = showNotesText,
+                errorData = getErrorData(episode),
+            )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), State.Empty)
+    }
+
+    private fun parseShowNotes(showNotesState: ShowNotesState): String? {
+        return (showNotesState as? ShowNotesState.Loaded)?.showNotes?.parseAsHtml()?.toString()
+    }
+
+    private fun getErrorData(episode: BaseEpisode): State.Loaded.ErrorData? {
+        val errorTitleRes: Int?
+        val errorIconRes: Int?
+        var errorDescription: String? = null
+
+        val episodeStatus = episode.downloadStatus
+        if (episode.playErrorDetails == null) {
+            errorTitleRes = when (episodeStatus) {
+                EpisodeDownloadStatus.DownloadFailed -> LR.string.podcasts_download_failed
+                EpisodeDownloadStatus.WaitingForWifi -> LR.string.podcasts_download_wifi
+                EpisodeDownloadStatus.WaitingForPower -> LR.string.podcasts_download_power
+                EpisodeDownloadStatus.WaitingForStorage -> LR.string.podcasts_download_storage
+                else -> null
+            }
+            if (episodeStatus == EpisodeDownloadStatus.DownloadFailed) {
+                errorDescription = episode.downloadErrorDetails
+            }
+            errorIconRes = when (episodeStatus) {
+                EpisodeDownloadStatus.DownloadFailed -> IR.drawable.ic_failedwarning
+                EpisodeDownloadStatus.WaitingForWifi -> IR.drawable.ic_waitingforwifi
+                EpisodeDownloadStatus.WaitingForPower -> IR.drawable.ic_waitingforpower
+                EpisodeDownloadStatus.WaitingForStorage -> IR.drawable.ic_waitingforstorage
+                else -> null
+            }
+        } else {
+            errorIconRes = IR.drawable.ic_play_all
+            errorTitleRes = LR.string.podcast_episode_playback_error
+            errorDescription = episode.playErrorDetails
+        }
+        return errorTitleRes?.let {
+            State.Loaded.ErrorData(
+                errorTitleRes = it,
+                errorIconRes = errorIconRes ?: IR.drawable.ic_failedwarning,
+                errorDescription = errorDescription,
+            )
+        }
+    }
+
+    private fun isInUpNext(
+        upNext: UpNextQueue.State?,
+        episode: BaseEpisode,
+    ) = (upNext is UpNextQueue.State.Loaded) &&
+        (upNext.queue + upNext.episode)
+            .map { it.uuid }
+            .contains(episode.uuid)
+
+    private suspend fun getTintColor(
+        episode: BaseEpisode,
+        podcast: Podcast?,
+        theme: Theme,
+    ): Color? = when (episode) {
+        is PodcastEpisode ->
+            podcast?.getTintColor(theme.isDarkTheme)?.let { podcastTint ->
+                val tint = ThemeColor.podcastIcon02(theme.activeTheme, podcastTint)
+                Color(tint)
+            }
+
+        is UserEpisode ->
+            // First check if the user has set a custom color for this episode
+            AddFileActivity.darkThemeColors().find {
+                episode.tintColorIndex == it.tintColorIndex
+            }?.let {
+                Color(it.color)
+            } ?: extractColorFromEpisodeArtwork(episode)
+    }
+
+    fun downloadEpisode() {
+        val episode = (stateFlow.value as? State.Loaded)?.episode ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            episodeManager.clearPlaybackErrorBlocking(episode)
+            if (episode.isDownloadCancellable) {
+                downloadQueue.cancel(episode.uuid, sourceView)
+            } else if (!episode.isDownloaded) {
+                downloadQueue.enqueue(episode.uuid, DownloadType.UserTriggered(waitForWifi = false), sourceView)
+            }
+        }
+    }
+
+    fun deleteDownloadedEpisode() {
+        val episode = (stateFlow.value as? State.Loaded)?.episode ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            episodeManager.disableAutoDownload(episode)
+            when (episode) {
+                is PodcastEpisode -> {
+                    downloadQueue.cancel(episode.uuid, sourceView)
+                }
+
+                is UserEpisode -> {
+                    CloudDeleteHelper.deleteEpisode(
+                        episode = episode,
+                        sourceView = sourceView,
+                        playbackManager = playbackManager,
+                        downloadQueue = downloadQueue,
+                        userEpisodeManager = userEpisodeManager,
+                        applicationScope = applicationScope,
+                    )
+                }
+            }
+        }
+    }
+
+    fun onPlayClicked(showStreamingConfirmation: () -> Unit) {
+        if (playbackManager.shouldWarnAboutPlayback()) {
+            showStreamingConfirmation()
+        } else {
+            playAttempt?.cancel()
+            playAttempt = applicationScope.launch { audioOutputSelectorHelper.attemptPlay(::play) }
+        }
+    }
+
+    fun onStreamingConfirmationResult(result: StreamingConfirmationScreen.Result) {
+        val confirmedStreaming = result == StreamingConfirmationScreen.Result.CONFIRMED
+        if (confirmedStreaming && !playbackManager.isPlaying()) {
+            playAttempt?.cancel()
+            playAttempt = applicationScope.launch { audioOutputSelectorHelper.attemptPlay(::play) }
+        }
+    }
+
+    private fun play() {
+        val episode = (stateFlow.value as? State.Loaded)?.episode ?: return
+        viewModelScope.launch {
+            if (episode.playErrorDetails != null) {
+                withContext(Dispatchers.IO) {
+                    episodeManager.clearPlaybackErrorBlocking(episode)
+                }
+            }
+            playbackManager.playNowSync(
+                episode = episode,
+                sourceView = sourceView,
+            )
+            _showNowPlaying.emit(true)
+        }
+    }
+
+    fun onPauseClicked() {
+        if ((stateFlow.value as? State.Loaded)?.isPlayingEpisode != true) {
+            Timber.e("Attempted to pause when not playing")
+            return
+        }
+        playAttempt?.cancel()
+
+        viewModelScope.launch {
+            playbackManager.pause(sourceView = sourceView)
+        }
+    }
+
+    fun addToUpNext(upNextPosition: UpNextPosition) {
+        val state = stateFlow.value as? State.Loaded ?: return
+        viewModelScope.launch {
+            playbackManager.play(
+                upNextPosition = upNextPosition,
+                episode = state.episode,
+                source = sourceView,
+            )
+        }
+    }
+
+    private fun removeFromUpNext() {
+        val state = stateFlow.value as? State.Loaded ?: return
+        playbackManager.removeEpisode(
+            episodeToRemove = state.episode,
+            source = SourceView.EPISODE_DETAILS,
+        )
+    }
+
+    fun onUpNextClicked(
+        onRemoveFromUpNext: () -> Unit,
+        navigateToUpNextOptions: () -> Unit,
+    ) {
+        val state = stateFlow.value as? State.Loaded ?: return
+
+        val wasInUpNext = state.inUpNext
+
+        if (wasInUpNext) {
+            removeFromUpNext()
+            onRemoveFromUpNext()
+        } else if (playbackManager.upNextQueue.queueEpisodes.isNotEmpty()) {
+            navigateToUpNextOptions()
+        } else {
+            // If the Up Next queue is empty, it doesn't matter where we add the episode
+            addToUpNext(UpNextPosition.NEXT)
+        }
+    }
+
+    fun onArchiveClicked() {
+        val episode = (stateFlow.value as? State.Loaded)?.episode ?: return
+        if (episode !is PodcastEpisode) {
+            Timber.e("Attempted to archive a non-podcast episode")
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val event = if (episode.isArchived) {
+                episodeManager.unarchiveBlocking(episode)
+                EpisodeUnarchivedEvent(
+                    episodeUuid = episode.uuid,
+                    source = sourceView.analyticsValue,
+                )
+            } else {
+                episodeManager.archiveBlocking(episode, playbackManager)
+                EpisodeArchivedEvent(
+                    episodeUuid = episode.uuid,
+                    source = sourceView.analyticsValue,
+                )
+            }
+            eventHorizon.track(event)
+        }
+    }
+
+    fun onStarClicked() {
+        (stateFlow.value as? State.Loaded)?.episode?.let { episode ->
+            if (episode !is PodcastEpisode) {
+                Timber.e("Attempted to star a non-podcast episode")
+                return
+            }
+
+            viewModelScope.launch {
+                episodeManager.toggleStarEpisode(episode, sourceView)
+            }
+        }
+    }
+
+    fun onMarkAsPlayedClicked() {
+        viewModelScope.launch(Dispatchers.IO) {
+            (stateFlow.value as? State.Loaded)?.episode?.let { episode ->
+                val event = if (episode.playingStatus == EpisodePlayingStatus.COMPLETED) {
+                    episodeManager.markAsNotPlayedBlocking(episode)
+                    EpisodeMarkedAsUnplayedEvent(
+                        episodeUuid = episode.uuid,
+                        source = sourceView.analyticsValue,
+                    )
+                } else {
+                    episodeManager.markAsPlayedBlocking(episode, playbackManager, podcastManager)
+                    EpisodeMarkedAsPlayedEvent(
+                        episodeUuid = episode.uuid,
+                        source = sourceView.analyticsValue,
+                    )
+                }
+                eventHorizon.track(event)
+            }
+        }
+    }
+
+    private suspend fun extractColorFromEpisodeArtwork(userEpisode: UserEpisode): Color = userEpisode.artworkUrl?.let { artworkUrl ->
+        val context = getApplication<Application>()
+        val loader = ImageLoader(context)
+        val request = ImageRequest.Builder(context)
+            .data(artworkUrl)
+            .allowHardware(false) // Disable hardware bitmaps.
+            .build()
+
+        val successResult = loader.execute(request) as? SuccessResult
+            ?: return@let null
+        val bitmap = successResult.image.toBitmap()
+
+        // Set a timeout to make sure the user isn't blocked for too long just
+        // because we're trying to extract a tint color.
+        withTimeoutOrNull(2000L) {
+            suspendCoroutine { continuation ->
+                Palette.from(bitmap).generate { palette ->
+                    val lightVibrantHsl = palette?.lightVibrantSwatch?.hsl
+                    continuation.resume(
+                        lightVibrantHsl?.let { hsl ->
+                            Color.hsl(hsl[0], hsl[1], hsl[2])
+                        },
+                    )
+                }
+            }
+        }
+    } ?: Color.White
+}

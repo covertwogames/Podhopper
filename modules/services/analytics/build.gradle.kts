@@ -1,0 +1,41 @@
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
+}
+
+android {
+    namespace = "au.com.shiftyjelly.pocketcasts.analytics"
+    buildFeatures {
+        buildConfig = true
+    }
+}
+
+dependencies {
+    ksp(libs.dagger.hilt.compiler)
+    ksp(libs.hilt.compiler)
+
+    api(libs.dagger.hilt.android)
+    api(libs.eventhorizon)
+
+    api(projects.modules.services.model)
+    api(projects.modules.services.preferences)
+    api(projects.modules.services.utils)
+    implementation(projects.modules.services.servers)
+
+    implementation(platform(libs.firebase.bom))
+
+    implementation(libs.automattic.explat)
+    implementation(libs.automattic.tracks)
+    implementation(libs.firebase.analytics)
+    implementation(libs.firebase.config)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.kotlin)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.robolectric)
+
+    testImplementation(projects.modules.services.sharedtest)
+    testImplementation(projects.modules.services.analytics.testing)
+}

@@ -1,0 +1,134 @@
+package au.com.shiftyjelly.pocketcasts.repositories.podcast
+
+import au.com.shiftyjelly.pocketcasts.models.entity.UserEpisode
+import au.com.shiftyjelly.pocketcasts.models.type.Subscription
+import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkManager
+import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadProgressCache
+import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
+import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackState
+import au.com.shiftyjelly.pocketcasts.repositories.playback.UpNextQueue
+import au.com.shiftyjelly.pocketcasts.repositories.playback.containsUuid
+import io.reactivex.Observable
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.rxkotlin.Observables
+import io.reactivex.schedulers.Schedulers
+import java.util.concurrent.TimeUnit
+import javax.inject.Inject
+import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.rx2.asObservable
+import kotlinx.coroutines.rx2.rxMaybe
+
+data class EpisodeRowData(
+    val downloadProgress: Int,
+    val playbackState: PlaybackState,
+    val isInUpNext: Boolean,
+    val hasBookmarks: Boolean,
+)
+
+data class UserEpisodeRowData(
+    val episode: UserEpisode,
+    val downloadProgress: Int,
+    val uploadProgress: Int,
+    val playbackState: PlaybackState,
+    val isInUpNext: Boolean,
+    val hasBookmarks: Boolean,
+)
+
+class EpisodeRowDataProvider @Inject constructor(
+    private val episodeManager: EpisodeManager,
+    private val downloadProgressCache: DownloadProgressCache,
+    private val playbackManager: PlaybackManager,
+    private val upNextQueue: UpNextQueue,
+    private val bookmarkManager: BookmarkManager,
+    private val userEpisodeManager: UserEpisodeManager,
+    private val settings: Settings,
+) {
+
+    fun userEpisodeRowDataObservable(episodeUuid: String): Observable<UserEpisodeRowData> {
+        return Observables.combineLatest(
+            userEpisodeManager.episodeFlow(episodeUuid).filterNotNull().asObservable(),
+            downloadProgressObservable(episodeUuid),
+            uploadProgressObservable(episodeUuid),
+            playbackStatusObservable(episodeUuid),
+            isInUpNextObservable(episodeUuid),
+            hasBookmarksObservable(episodeUuid),
+            ::UserEpisodeRowData,
+        )
+            .subscribeOn(Schedulers.io())
+            .observeOn(AndroidSchedulers.mainThread())
+    }
+
+    fun episodeRowDataObservable(episodeUuid: String): Observable<EpisodeRowData> {
+        return rxMaybe { episodeManager.findEpisodeByUuid(episodeUuid) }.toObservable()
+            .switchMap { episode ->
+                Observables.combineLatest(
+                    downloadProgressObservable(episodeUuid),
+                    playbackStatusObservable(episodeUuid),
+                    isInUpNextObservable(episodeUuid),
+                    hasBookmarksObservable(episodeUuid),
+                    ::EpisodeRowData,
+                )
+            }
+            .subscribeOn(Schedulers.io())
+            .observeOn(AndroidSchedulers.mainThread())
+    }
+
+    private fun downloadProgressObservable(episodeUuid: String): Observable<Int> {
+        return downloadProgressCache.progressFlow(episodeUuid)
+            .map { progress -> progress?.percentage ?: 0 }
+            .distinctUntilChanged()
+            .asObservable()
+    }
+
+    private fun uploadProgressObservable(episodeUuid: String): Observable<Int> {
+        return UploadProgressManager.progressFlow(episodeUuid)
+            .asObservable()
+            .map { (it * 100).roundToInt() }
+            .throttleLatest(1, TimeUnit.SECONDS)
+            .startWith(0)
+            .distinctUntilChanged()
+    }
+
+    private fun playbackStatusObservable(episodeUuid: String): Observable<PlaybackState> {
+        val emptyState = PlaybackState(episodeUuid = episodeUuid)
+        return playbackManager.playbackStateRelay
+            .startWith(emptyState)
+            .map { if (it.episodeUuid == episodeUuid) it else emptyState }
+            .distinctUntilChanged { prev, curr ->
+                prev.state == curr.state &&
+                    prev.episodeUuid == curr.episodeUuid &&
+                    prev.positionMs == curr.positionMs &&
+                    prev.isBuffering == curr.isBuffering
+            }
+    }
+
+    private fun isInUpNextObservable(episodeUuid: String): Observable<Boolean> {
+        return upNextQueue
+            .changesObservable
+            .containsUuid(episodeUuid)
+            .startWith(false)
+            .distinctUntilChanged()
+    }
+
+    private fun hasBookmarksObservable(episodeUuid: String): Observable<Boolean> {
+        fun hasActiveBookmarks(subscription: Subscription?, hasBookmarks: Boolean): Boolean {
+            return hasBookmarks && subscription != null
+        }
+
+        val combinedDataFlow = combine(
+            settings.cachedSubscription.flow,
+            bookmarkManager.hasBookmarksFlow(episodeUuid),
+            ::hasActiveBookmarks,
+        )
+
+        return combinedDataFlow
+            .asObservable()
+            .startWith(false)
+            .distinctUntilChanged()
+    }
+}

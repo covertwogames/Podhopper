@@ -1,0 +1,89 @@
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.kotlin.parcelize)
+}
+
+android {
+    namespace = "au.com.shiftyjelly.pocketcasts.repositories"
+    buildFeatures {
+        buildConfig = true
+    }
+}
+
+dependencies {
+    ksp(libs.dagger.hilt.compiler)
+    ksp(libs.hilt.compiler)
+    ksp(libs.moshi.kotlin.codegen)
+
+    api(libs.billing.ktx)
+    api(libs.dagger.hilt.android)
+    api(libs.hilt.work)
+    api(libs.media3.datasource)
+    api(libs.media3.exoplayer)
+    api(libs.media3.extractor)
+    api(libs.moshi)
+    api(libs.okhttp)
+    api(libs.play.review)
+    api(libs.rx2.java)
+    api(libs.rx2.relay)
+    api(libs.work.runtime)
+    api(libs.work.rx2)
+
+    api(projects.modules.services.analytics)
+    api(projects.modules.services.coroutines)
+    api(projects.modules.services.crashlogging)
+    api(projects.modules.services.fingerprint)
+    api(projects.modules.services.localization)
+    api(projects.modules.services.model)
+    api(projects.modules.services.payment)
+    api(projects.modules.services.preferences)
+    api(projects.modules.services.protobuf)
+    api(projects.modules.services.servers)
+    api(projects.modules.services.utils)
+
+    implementation(platform(libs.compose.bom))
+
+    implementation(libs.androidx.appcompat)
+    implementation(libs.stalla)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.palette)
+    implementation(libs.androidx.preference.ktx)
+    implementation(libs.coil)
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.compose.ui.graphics)
+    implementation(libs.coroutines.core)
+    implementation(libs.coroutines.rx2)
+    implementation(libs.device.names)
+    implementation(libs.guava)
+    implementation(libs.lifecycle.process)
+    implementation(libs.lifecycle.reactivestreams.ktx)
+    implementation(libs.material)
+    implementation(libs.media3.datasource.okhttp)
+    implementation(libs.media3.exoplayer.hls)
+    api(libs.media3.session)
+    implementation(libs.media3.ui)
+    implementation(libs.play.auth)
+    implementation(libs.play.cast)
+    implementation(libs.protobuf.javalite)
+    implementation(libs.retrofit)
+    implementation(libs.room.ktx)
+    implementation(libs.rx2.android)
+    implementation(libs.rx2.kotlin)
+    implementation(libs.timber)
+
+    implementation(projects.modules.services.deeplink)
+    implementation(projects.modules.services.images)
+
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.kotlin)
+    testImplementation(libs.okHttp.mockwebserver)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.turbine)
+
+    testImplementation(projects.modules.services.sharedtest)
+    testImplementation(projects.modules.services.analytics.testing)
+}

@@ -1,0 +1,12 @@
+develocity {
+    buildScan {
+        if (gradle.ext["isCi"]) {
+            termsOfUseUrl = 'https://gradle.com/terms-of-service'
+            termsOfUseAgree = 'yes'
+            tag 'CI'
+            uploadInBackground = false
+        } else {
+            publishing.onlyIf { false }
+        }
+    }
+}

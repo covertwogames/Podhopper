@@ -1,0 +1,402 @@
+package au.com.shiftyjelly.pocketcasts.repositories.appreview
+
+import app.cash.turbine.TurbineTestContext
+import app.cash.turbine.test
+import au.com.shiftyjelly.pocketcasts.analytics.testing.TestEventSink
+import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.preferences.model.AppReviewReason
+import au.com.shiftyjelly.pocketcasts.sharedtest.MutableClock
+import com.automattic.eventhorizon.EventHorizon
+import com.google.android.play.core.ktx.requestReview
+import com.google.android.play.core.review.testing.FakeReviewManager
+import java.time.Instant
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@Config(manifest = Config.NONE)
+@RunWith(RobolectricTestRunner::class)
+class AppReviewManagerTest {
+    private val episodesCompletedSetting = TestSetting(emptyList<Instant>())
+    private val episodeStarredSetting = TestSetting<Instant?>(null)
+    private val podcastRatedSetting = TestSetting<Instant?>(null)
+    private val playlistCreatedSetting = TestSetting<Instant?>(null)
+    private val plusUpgradedSetting = TestSetting<Instant?>(null)
+    private val folderCreatedSetting = TestSetting<Instant?>(null)
+    private val bookmarkCreatedSetting = TestSetting<Instant?>(null)
+    private val themeChangedSetting = TestSetting<Instant?>(null)
+    private val referralSharedSetting = TestSetting<Instant?>(null)
+    private val endOfYearSharedSetting = TestSetting<Instant?>(null)
+    private val endOfYearCompletedSetting = TestSetting<Instant?>(null)
+
+    private val submittedReasonsSetting = TestSetting(emptyList<AppReviewReason>())
+    private val lastPromptSetting = TestSetting<Instant?>(null)
+    private val lastDeclineTimestampsSetting = TestSetting(emptyList<Instant>())
+    private val errorSessionsSetting = TestSetting(emptyList<String>())
+    private val crashTimestampSetting = TestSetting<Instant?>(null)
+
+    private val googleManager = FakeReviewManager(RuntimeEnvironment.getApplication())
+
+    private val clock = MutableClock()
+    private val loopIdleDuration = 1.seconds
+    private var sessionIds = mutableListOf<String>()
+
+    private val manager = AppReviewManagerImpl(
+        clock = clock,
+        settings = mock<Settings> {
+            on { sessionIds } doReturn sessionIds
+            on { appReviewEpisodeCompletedTimestamps } doReturn episodesCompletedSetting
+            on { appReviewEpisodeStarredTimestamp } doReturn episodeStarredSetting
+            on { appReviewPodcastRatedTimestamp } doReturn podcastRatedSetting
+            on { appReviewPlaylistCreatedTimestamp } doReturn playlistCreatedSetting
+            on { appReviewPlusUpgradedTimestamp } doReturn plusUpgradedSetting
+            on { appReviewFolderCreatedTimestamp } doReturn folderCreatedSetting
+            on { appReviewBookmarkCreatedTimestamp } doReturn bookmarkCreatedSetting
+            on { appReviewThemeChangedTimestamp } doReturn themeChangedSetting
+            on { appReviewReferralSharedTimestamp } doReturn referralSharedSetting
+            on { appReviewEndOfYearSharedTimestamp } doReturn endOfYearSharedSetting
+            on { appReviewEndOfYearCompletedTimestamp } doReturn endOfYearCompletedSetting
+            on { appReviewSubmittedReasons } doReturn submittedReasonsSetting
+            on { appReviewLastPromptTimestamp } doReturn lastPromptSetting
+            on { appReviewLastDeclineTimestamps } doReturn lastDeclineTimestampsSetting
+            on { appReviewErrorSessionIds } doReturn errorSessionsSetting
+            on { appReviewCrashTimestamp } doReturn crashTimestampSetting
+        },
+        eventHorizon = EventHorizon(TestEventSink()),
+        googleManager = googleManager,
+        loopIdleDuration = loopIdleDuration,
+    )
+
+    @Test
+    fun `dispatch third episode completed reason`() = runTest {
+        testInLoop {
+            episodesCompletedSetting.set(List(1) { clock.instant() })
+            expectNoSignal()
+
+            episodesCompletedSetting.set(List(2) { clock.instant() })
+            expectNoSignal()
+
+            episodesCompletedSetting.set(List(3) { clock.instant() })
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.ThirdEpisodeCompleted, signal.reason)
+        }
+    }
+
+    @Test
+    fun `dispatch episode starred reason`() = runTest {
+        testInLoop {
+            episodeStarredSetting.set(clock.instant())
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.EpisodeStarred, signal.reason)
+        }
+    }
+
+    @Test
+    fun `dispatch show rated reason`() = runTest {
+        testInLoop {
+            podcastRatedSetting.set(clock.instant())
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.ShowRated, signal.reason)
+        }
+    }
+
+    @Test
+    fun `dispatch filter created reason`() = runTest {
+        testInLoop {
+            playlistCreatedSetting.set(clock.instant())
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.FilterCreated, signal.reason)
+        }
+    }
+
+    @Test
+    fun `dispatch plus upgraded reason`() = runTest {
+        testInLoop {
+            plusUpgradedSetting.set(clock.instant())
+            expectNoSignal()
+
+            clock += 2.days
+            expectNoSignal()
+
+            clock += 1.seconds
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.PlusUpgraded, signal.reason)
+        }
+    }
+
+    @Test
+    fun `dispatch folder created reason`() = runTest {
+        testInLoop {
+            folderCreatedSetting.set(clock.instant())
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.FolderCreated, signal.reason)
+        }
+    }
+
+    @Test
+    fun `dispatch bookmark created reason`() = runTest {
+        testInLoop {
+            bookmarkCreatedSetting.set(clock.instant())
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.BookmarkCreated, signal.reason)
+        }
+    }
+
+    @Test
+    fun `dispatch custom theme set reason`() = runTest {
+        testInLoop {
+            themeChangedSetting.set(clock.instant())
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.CustomThemeSet, signal.reason)
+        }
+    }
+
+    @Test
+    fun `dispatch referrals shared reason`() = runTest {
+        testInLoop {
+            referralSharedSetting.set(clock.instant())
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.ReferralShared, signal.reason)
+        }
+    }
+
+    @Test
+    fun `dispatch playback shared reason`() = runTest {
+        testInLoop {
+            endOfYearSharedSetting.set(clock.instant())
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.EndOfYearShared, signal.reason)
+        }
+    }
+
+    @Test
+    fun `dispatch playback completed reason`() = runTest {
+        testInLoop {
+            endOfYearCompletedSetting.set(clock.instant())
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.EndOfYearCompleted, signal.reason)
+        }
+    }
+
+    @Test
+    fun `do not dispatch the same event twice if consumed`() = runTest {
+        testInLoop {
+            episodesCompletedSetting.set(List(3) { clock.instant() })
+            awaitSignalAndConsume()
+
+            clock += 1.seconds // Move the clock so the values are different
+            episodesCompletedSetting.set(List(3) { clock.instant() })
+            episodesCompletedSetting.set(List(4) { clock.instant() })
+            expectNoSignal()
+        }
+    }
+
+    @Test
+    fun `dispatch the same event again if not consumed`() = runTest {
+        testInLoop {
+            episodesCompletedSetting.set(List(3) { clock.instant() })
+            awaitSignalAndIgnore()
+
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.ThirdEpisodeCompleted, signal.reason)
+        }
+    }
+
+    @Test
+    fun `dispatch event only if the prompt was not triggered in 30 days`() = runTest {
+        testInLoop {
+            val trigger = launch {
+                manager.triggerPrompt(
+                    AppReviewReason.DevelopmentTrigger,
+                    googleManager.requestReview(),
+                )
+            }
+            awaitSignalAndConsume()
+            trigger.join()
+
+            episodeStarredSetting.set(clock.instant())
+            expectNoSignal()
+
+            clock += 30.days
+            expectNoSignal()
+
+            clock += 1.days
+            episodeStarredSetting.set(clock.instant())
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.EpisodeStarred, signal.reason)
+        }
+    }
+
+    @Test
+    fun `dispatch event only if the prompt was not declined twice in 60 days`() = runTest {
+        testInLoop {
+            lastDeclineTimestampsSetting.set(
+                listOf(
+                    clock.instant().minusMillis(61.days.inWholeMilliseconds),
+                    clock.instant(),
+                ),
+            )
+            episodeStarredSetting.set(clock.instant())
+            awaitSignalAndIgnore()
+
+            lastDeclineTimestampsSetting.set(
+                listOf(
+                    clock.instant().minusMillis(60.days.inWholeMilliseconds),
+                    clock.instant(),
+                ),
+            )
+            episodeStarredSetting.set(clock.instant())
+            expectNoSignal()
+        }
+    }
+
+    @Test
+    fun `dispatch event only if error occurred in the last 2 sessions`() = runTest {
+        testInLoop {
+            sessionIds.add("1")
+            errorSessionsSetting.set(listOf("1"))
+
+            episodeStarredSetting.set(clock.instant())
+            expectNoSignal()
+
+            sessionIds.add("2")
+            expectNoSignal()
+
+            sessionIds.add("3")
+            episodeStarredSetting.set(clock.instant())
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.EpisodeStarred, signal.reason)
+        }
+    }
+
+    @Test
+    fun `dispatch event only if there was no crash in a week`() = runTest {
+        testInLoop {
+            crashTimestampSetting.set(clock.instant())
+            episodeStarredSetting.set(clock.instant())
+            expectNoSignal()
+
+            clock += 7.days
+            expectNoSignal()
+
+            clock += 1.seconds
+            episodeStarredSetting.set(clock.instant())
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.EpisodeStarred, signal.reason)
+        }
+    }
+
+    @Test
+    fun `do not monitor if all reasons were dispatched`() = runTest {
+        submittedReasonsSetting.set(AppReviewReason.entries - AppReviewReason.DevelopmentTrigger)
+
+        val job = launch { manager.monitorAppReviewReasons() }
+        yield()
+        assertTrue(job.isCompleted)
+    }
+
+    @Test
+    fun `do not monitor if user declined twice in 60 days`() = runTest {
+        episodeStarredSetting.set(clock.instant())
+
+        lastDeclineTimestampsSetting.set(listOf(clock.instant(), clock.instant()))
+
+        val job = launch { manager.monitorAppReviewReasons() }
+        yield()
+        assertTrue(job.isCompleted)
+    }
+
+    @Test
+    fun `clear unused app review reasons after one is dispatched`() = runTest {
+        testInLoop {
+            episodeStarredSetting.set(clock.instant())
+            bookmarkCreatedSetting.set(clock.instant())
+
+            var signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.EpisodeStarred, signal.reason)
+
+            clock += 100.days
+            expectNoSignal()
+
+            bookmarkCreatedSetting.set(clock.instant())
+            signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.BookmarkCreated, signal.reason)
+        }
+    }
+
+    @Test
+    fun `clear unused app review reasons after prompting fails`() = runTest {
+        testInLoop {
+            crashTimestampSetting.set(clock.instant())
+            episodeStarredSetting.set(clock.instant())
+
+            expectNoSignal()
+
+            clock += 100.days
+            expectNoSignal()
+
+            episodeStarredSetting.set(clock.instant())
+            val signal = awaitSignalAndConsume()
+            assertEquals(AppReviewReason.EpisodeStarred, signal.reason)
+        }
+    }
+
+    private suspend fun testInLoop(validate: suspend LoopContext.() -> Unit) {
+        manager.showPromptSignal.test {
+            val monitoringJob = launch(start = CoroutineStart.UNDISPATCHED) { manager.monitorAppReviewReasons() }
+
+            val loopContext = LoopContext(this, loopIdleDuration)
+            loopContext.validate()
+
+            monitoringJob.cancelAndJoin()
+        }
+    }
+
+    private class LoopContext(
+        private val turbineContext: TurbineTestContext<AppReviewSignal>,
+        private val loopIdleDuration: Duration,
+    ) {
+        suspend fun TestScope.awaitSignalAndConsume(): AppReviewSignal {
+            runLoopCycle()
+            val signal = turbineContext.awaitItem().also { it.consume() }
+            yield()
+            return signal
+        }
+
+        suspend fun TestScope.awaitSignalAndIgnore(): AppReviewSignal {
+            runLoopCycle()
+            val signal = turbineContext.awaitItem().also { it.ignore() }
+            yield()
+            return signal
+        }
+
+        suspend fun TestScope.expectNoSignal() {
+            runLoopCycle()
+            turbineContext.expectNoEvents()
+            yield()
+        }
+
+        private suspend fun TestScope.runLoopCycle() {
+            advanceTimeBy(loopIdleDuration)
+            yield()
+        }
+    }
+}

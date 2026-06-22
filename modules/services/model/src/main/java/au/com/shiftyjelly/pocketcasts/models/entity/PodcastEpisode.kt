@@ -1,0 +1,160 @@
+package au.com.shiftyjelly.pocketcasts.models.entity
+
+import android.content.res.Resources
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.Ignore
+import androidx.room.Index
+import androidx.room.PrimaryKey
+import au.com.shiftyjelly.pocketcasts.localization.R
+import au.com.shiftyjelly.pocketcasts.models.converter.SafeDate
+import au.com.shiftyjelly.pocketcasts.models.entity.BaseEpisode.Companion.AUTO_DOWNLOAD_STATUS_ALLOW
+import au.com.shiftyjelly.pocketcasts.models.to.EpisodeUuidPair
+import au.com.shiftyjelly.pocketcasts.models.type.EpisodeDownloadStatus
+import au.com.shiftyjelly.pocketcasts.models.type.EpisodePlayingStatus
+import au.com.shiftyjelly.pocketcasts.utils.extensions.unidecode
+import java.io.Serializable
+import java.util.Date
+
+@Entity(
+    tableName = "podcast_episodes",
+    indices = [
+        Index(name = "episode_last_download_attempt_date", value = arrayOf("last_download_attempt_date")),
+        Index(name = "episode_podcast_id", value = arrayOf("podcast_id")),
+        Index(name = "episode_published_date", value = arrayOf("published_date")),
+    ],
+)
+data class PodcastEpisode(
+    @PrimaryKey(autoGenerate = false) @ColumnInfo(name = "uuid") override var uuid: String,
+    @ColumnInfo(name = "episode_description") override var episodeDescription: String = "",
+    @ColumnInfo(name = "published_date") override var publishedDate: SafeDate,
+    @ColumnInfo(name = "title") override var title: String = "",
+    @ColumnInfo(name = "size_in_bytes") override var sizeInBytes: Long = 0,
+    @ColumnInfo(name = "episode_status") override var downloadStatus: EpisodeDownloadStatus = EpisodeDownloadStatus.DownloadNotRequested,
+    @ColumnInfo(name = "file_type") override var fileType: String? = null,
+    @ColumnInfo(name = "duration") override var duration: Double = 0.0,
+    @ColumnInfo(name = "download_url") override var downloadUrl: String? = null,
+    @ColumnInfo(name = "hls_url") override var hlsUrl: String? = null,
+    @ColumnInfo(name = "downloaded_file_path") override var downloadedFilePath: String? = null,
+    @ColumnInfo(name = "downloaded_error_details") override var downloadErrorDetails: String? = null,
+    @ColumnInfo(name = "play_error_details") override var playErrorDetails: String? = null,
+    @ColumnInfo(name = "played_up_to") override var playedUpTo: Double = 0.0,
+    @ColumnInfo(name = "playing_status") override var playingStatus: EpisodePlayingStatus = EpisodePlayingStatus.NOT_PLAYED,
+    @ColumnInfo(name = "podcast_id") var podcastUuid: String = "",
+    @ColumnInfo(name = "added_date") override var addedDate: Date = Date(),
+    @ColumnInfo(name = "auto_download_status") override var autoDownloadStatus: Int = AUTO_DOWNLOAD_STATUS_ALLOW,
+    @ColumnInfo(name = "starred") override var isStarred: Boolean = false,
+    @ColumnInfo(name = "thumbnail_status") var thumbnailStatus: Int = THUMBNAIL_STATUS_UNKNOWN,
+    @ColumnInfo(name = "last_download_attempt_date") override var lastDownloadAttemptDate: Date? = null,
+    @ColumnInfo(name = "playing_status_modified") override var playingStatusModified: Long? = null,
+    @ColumnInfo(name = "played_up_to_modified") override var playedUpToModified: Long? = null,
+    @ColumnInfo(name = "duration_modified") var durationModified: Long? = null,
+    @ColumnInfo(name = "starred_modified") var starredModified: Long? = null,
+    @ColumnInfo(name = "last_starred_date") var lastStarredDate: Long? = null,
+    @ColumnInfo(name = "archived") override var isArchived: Boolean = false,
+    @ColumnInfo(name = "archived_modified") var archivedModified: Long? = null,
+    @ColumnInfo(name = "season") var season: Long? = null,
+    @ColumnInfo(name = "number") var number: Long? = null,
+    @ColumnInfo(name = "type") var type: String? = null,
+    @ColumnInfo(name = "last_playback_interaction_date") var lastPlaybackInteraction: Long? = null,
+    @ColumnInfo(name = "last_playback_interaction_sync_status") var lastPlaybackInteractionSyncStatus: Long = LAST_PLAYBACK_INTERACTION_SYNCED,
+    @ColumnInfo(name = "exclude_from_episode_limit") var excludeFromEpisodeLimit: Boolean = false,
+    @ColumnInfo(name = "download_task_id") override var downloadTaskId: String? = null,
+    @ColumnInfo(name = "last_archive_interaction_date") var lastArchiveInteraction: Long? = null,
+    @ColumnInfo(name = "image_url") var imageUrl: String? = null,
+    @ColumnInfo(name = "deselected_chapters") override var deselectedChapters: ChapterIndices = ChapterIndices(),
+    @ColumnInfo(name = "deselected_chapters_modified") override var deselectedChaptersModified: Date? = null,
+    @ColumnInfo(name = "slug") var slug: String = "",
+    @ColumnInfo(name = "has_generated_transcript") var hasGeneratedTranscript: Boolean = false,
+) : BaseEpisode,
+    Serializable {
+
+    sealed class EpisodeType {
+        object Regular : EpisodeType()
+        object Bonus : EpisodeType()
+        object Trailer : EpisodeType()
+
+        companion object {
+            private const val EPISODE_TYPE_REGULAR = "episode"
+            private const val EPISODE_TYPE_BONUS = "bonus"
+            private const val EPISODE_TYPE_TRAILER = "trailer"
+
+            fun fromString(value: String?): EpisodeType {
+                return when (value) {
+                    EPISODE_TYPE_BONUS -> Bonus
+                    EPISODE_TYPE_TRAILER -> Trailer
+                    else -> Regular
+                }
+            }
+        }
+    }
+
+    companion object {
+        const val THUMBNAIL_STATUS_UNKNOWN = 0
+        const val THUMBNAIL_STATUS_EMBEDDED_AVAILABLE = 1
+        const val THUMBNAIL_STATUS_EMBEDDED_NOT_AVAILABLE = 2
+
+        const val LAST_PLAYBACK_INTERACTION_NOT_SYNCED = 0L
+        const val LAST_PLAYBACK_INTERACTION_SYNCED = 1L
+
+        fun seasonPrefix(episodeType: EpisodeType, season: Long?, number: Long?, resources: Resources): String? {
+            return if (episodeType !is EpisodeType.Bonus && (season ?: 0 > 0 || number ?: 0 > 0)) {
+                return if (season ?: 0 > 0 && number ?: 0 > 0) {
+                    resources.getString(R.string.episode_short_season_episode, season, number)
+                } else if (season ?: 0 > 0) {
+                    resources.getString(R.string.episode_short_season, season)
+                } else if (number ?: 0 > 0) {
+                    resources.getString(R.string.episode_short_episode, number)
+                } else {
+                    null
+                }
+            } else {
+                null
+            }
+        }
+    }
+
+    @ColumnInfo(name = "cleanTitle")
+    var cleanTitle: String? = ""
+        get() = title.unidecode()
+        internal set
+
+    // temporary variables
+    @Ignore
+    override var playing: Boolean = false
+
+    val playedPercentage: Int
+        get() {
+            return if (isFinished) {
+                100
+            } else {
+                ((playedUpTo / duration) * 100).toInt()
+            }
+        }
+
+    val isUnplayed: Boolean
+        get() = EpisodePlayingStatus.NOT_PLAYED == playingStatus
+
+    val episodeType: EpisodeType
+        get() = EpisodeType.fromString(type)
+
+    val lastPlaybackInteractionDate: Date?
+        get() = lastPlaybackInteraction?.let { Date(it) }
+
+    val uuidPair get() = EpisodeUuidPair(
+        episodeUuid = uuid,
+        podcastUuid = podcastUuid,
+    )
+
+    fun setPlayingStatusInt(status: Int) {
+        this.playingStatus = when (status) {
+            2 -> EpisodePlayingStatus.IN_PROGRESS
+            3 -> EpisodePlayingStatus.COMPLETED
+            else -> EpisodePlayingStatus.NOT_PLAYED
+        }
+    }
+
+    override fun displaySubtitle(podcast: Podcast?): String {
+        return podcast?.title ?: ""
+    }
+}

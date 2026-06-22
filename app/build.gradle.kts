@@ -1,0 +1,181 @@
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.parcelize)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.sentry)
+    alias(libs.plugins.google.services)
+    alias(libs.plugins.compose.compiler)
+}
+
+sentry {
+    projectName = project.findProperty("sentryAndroidProject")?.toString()
+}
+
+android {
+    namespace = "au.com.shiftyjelly.pocketcasts"
+
+    defaultConfig {
+        applicationId = project.property("applicationId").toString()
+        targetSdk = project.property("targetSdkVersion") as Int
+        multiDexEnabled = true
+    }
+
+    sourceSets {
+        getByName("androidTest") {
+            assets.directories.add("$rootDir/modules/services/model/schemas")
+        }
+    }
+
+    buildFeatures {
+        buildConfig = true
+        viewBinding = true
+        compose = true
+    }
+
+    buildTypes {
+        named("debug") {
+            manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher"
+        }
+
+        named("debugProd") {
+            manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher_3"
+        }
+
+        maybeCreate("prototype").apply {
+            manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher_prototype"
+        }
+
+        named("release") {
+            manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher"
+
+            if (project.findProperty("sentryAndroidProject")?.toString().isNullOrBlank()) {
+                println("WARNING: Sentry configuration not found. The ProGuard mapping files won't be uploaded.")
+            }
+        }
+    }
+
+    lint {
+        checkDependencies = true
+    }
+}
+
+dependencies {
+    ksp(libs.dagger.hilt.compiler)
+    ksp(libs.hilt.compiler)
+
+    implementation(platform(libs.compose.bom))
+    implementation(platform(libs.firebase.bom))
+
+    implementation(libs.androidx.annotation)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.mediarouter)
+    implementation(libs.automattic.crashlogging)
+    implementation(libs.coil)
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.compose.ui)
+    implementation(libs.coroutines.android)
+    implementation(libs.coroutines.core)
+    implementation(libs.coroutines.reactive)
+    implementation(libs.coroutines.rx2)
+    implementation(libs.dagger.hilt.android)
+    implementation(libs.dagger.hilt.core)
+    implementation(libs.datastore)?.because("Force using the latest datastore version to stop the app crashing with Glance widgets. Glance and Horologist libraries both include this library. Pull request https://github.com/Automattic/pocket-casts-android/pull/4031.")
+    implementation(libs.encryptedlogging)
+    implementation(libs.firebase.config)
+    implementation(libs.fragment.ktx)
+    implementation(libs.guava)
+    implementation(libs.hilt.work)
+    implementation(libs.horologist.auth.data.phone)
+    implementation(libs.horologist.datalayer)
+    implementation(libs.lifecycle.reactivestreams.ktx)
+    implementation(libs.material)
+    implementation(libs.media3.extractor)
+    implementation(libs.moshi)
+    implementation(libs.okhttp)
+    implementation(libs.play.cast)
+    implementation(libs.play.wearable)
+    implementation(libs.retrofit)
+    implementation(libs.rx2.java)
+    implementation(libs.rx2.kotlin)
+    implementation(libs.rx2.relay)
+    implementation(libs.timber)
+    implementation(libs.work.runtime)
+
+    implementation(projects.modules.features.account)
+    implementation(projects.modules.features.appreview)
+    implementation(projects.modules.features.discover)
+    implementation(projects.modules.features.engage)
+    implementation(projects.modules.features.endofyear)
+    implementation(projects.modules.features.filters)
+    implementation(projects.modules.features.navigation)
+    implementation(projects.modules.features.player)
+    implementation(projects.modules.features.podcasts)
+    implementation(projects.modules.features.profile)
+    implementation(projects.modules.features.referrals)
+    implementation(projects.modules.features.reimagine)
+    implementation(projects.modules.features.search)
+    implementation(projects.modules.features.settings)
+    implementation(projects.modules.features.shared)
+    implementation(projects.modules.features.taskerplugin)
+    implementation(projects.modules.features.widgets)
+    implementation(projects.modules.services.analytics)
+    implementation(projects.modules.services.compose)
+    implementation(projects.modules.services.coroutines)
+    implementation(projects.modules.services.crashlogging)
+    implementation(projects.modules.services.deeplink)
+    implementation(projects.modules.services.localization)
+    implementation(projects.modules.services.mediaNoop)
+    implementation(projects.modules.services.model)
+    implementation(projects.modules.services.preferences)
+    implementation(projects.modules.services.repositories)
+    implementation(projects.modules.services.servers)
+    implementation(projects.modules.services.sharing)
+    implementation(projects.modules.services.ui)
+    implementation(projects.modules.services.utils)
+    implementation(projects.modules.services.views)
+
+    debugImplementation(libs.compose.ui.tooling)
+
+    debugProdImplementation(libs.compose.ui.tooling)
+
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.kotlin)
+    testImplementation(libs.turbine)
+
+    testImplementation(projects.modules.services.sharedtest)
+    testImplementation(projects.modules.services.analytics.testing)
+
+    androidTestImplementation(libs.androidx.preference.ktx)
+    androidTestImplementation(libs.androidx.recyclerview)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.espresso.core)
+    androidTestImplementation(libs.androidx.test.junit.ext)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.uiautomator)
+    androidTestImplementation(libs.compose.activity)
+    androidTestImplementation(libs.compose.ui.test.junit)
+    androidTestImplementation(libs.coroutines.test)
+    androidTestImplementation(libs.jsonassert)
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.hilt.navigation.compose)
+    androidTestImplementation(libs.mockito.android)
+    androidTestImplementation(libs.mockito.core)
+    androidTestImplementation(libs.mockito.kotlin)
+    androidTestImplementation(libs.navigation.compose)
+    androidTestImplementation(libs.navigation.runtime)
+    androidTestImplementation(libs.navigation.testing)
+    androidTestImplementation(libs.okHttp.mockwebserver)
+    androidTestImplementation(libs.retrofit.moshi)
+    androidTestImplementation(libs.room)
+    androidTestImplementation(libs.room.testing)
+    androidTestImplementation(libs.turbine)
+    androidTestImplementation(libs.work.test)
+
+    androidTestImplementation(projects.modules.services.sharedtest)
+    androidTestImplementation(projects.modules.services.analytics.testing)
+}

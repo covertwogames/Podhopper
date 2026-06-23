@@ -171,6 +171,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperPositionSy
 import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperSubscriptionSync
 import au.com.shiftyjelly.pocketcasts.repositories.refresh.RefreshPodcastsTask
 import au.com.shiftyjelly.pocketcasts.repositories.sync.SyncManager
+import au.com.shiftyjelly.pocketcasts.search.AddPodcastFragment
 import au.com.shiftyjelly.pocketcasts.search.SearchFragment
 import au.com.shiftyjelly.pocketcasts.servers.ServiceManager
 import au.com.shiftyjelly.pocketcasts.servers.model.NetworkLoadableList.Companion.TRENDING
@@ -557,9 +558,6 @@ class MainActivity :
         }
 
         binding.bottomNavigation.inflateMenu(VR.menu.navigation)
-        // PodHopper: Discover is removed. Strip its tab so the menu item never shows and its
-        // fragment never loads.
-        binding.bottomNavigation.menu.removeItem(VR.id.navigation_discover)
 
         lifecycleScope.launch {
             lifecycle.repeatOnLifecycle(Lifecycle.State.CREATED) {
@@ -578,6 +576,7 @@ class MainActivity :
         var selectedTab = settings.selectedTab()
         val tabs = buildMap {
             put(VR.id.navigation_podcasts) { FragmentInfo(PodcastsFragment(), true) }
+            put(VR.id.navigation_discover) { FragmentInfo(AddPodcastFragment(), true) }
             put(VR.id.navigation_filters) { FragmentInfo(PlaylistsFragment(), true) }
             put(VR.id.navigation_profile) { FragmentInfo(ProfileFragment(), true) }
             put(VR.id.navigation_upnext) {

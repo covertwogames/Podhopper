@@ -12,6 +12,7 @@ import java.time.Instant
 import java.time.temporal.TemporalAccessor
 import java.util.Date
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,7 +36,10 @@ class FeedParser @Inject constructor() {
         val episodes: List<PodcastEpisode>,
     )
 
-    private val httpClient = OkHttpClient()
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
 
     /** Deterministic podcast id derived from the feed URL. */
     fun podcastUuidForFeed(feedUrl: String): String =
@@ -54,7 +58,8 @@ class FeedParser @Inject constructor() {
         val parsed = try {
             val request = Request.Builder()
                 .url(url)
-                .header("User-Agent", "PodHopper")
+                .header("User-Agent", USER_AGENT)
+                .header("Accept", ACCEPT)
                 .build()
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
@@ -118,5 +123,14 @@ class FeedParser @Inject constructor() {
         Date.from(Instant.from(temporal))
     } catch (e: Exception) {
         null
+    }
+
+    companion object {
+        // Some podcast hosts (for example FlightCast, which sits behind bot protection) reject
+        // requests carrying an unrecognized one word User-Agent. A browser style identifier that
+        // still names the app, matching the convention well behaved crawlers use, clears those
+        // checks while honestly identifying the client. The +url is informational only.
+        private const val USER_AGENT = "Mozilla/5.0 (compatible; PodHopper/1.0; +https://covertwogames.com)"
+        private const val ACCEPT = "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5"
     }
 }

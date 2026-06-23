@@ -69,3 +69,5 @@ sentry.properties
 developer.properties
 
 .claude/settings.local.json
+
+app/src/main/assets/discover_blocklist.txt

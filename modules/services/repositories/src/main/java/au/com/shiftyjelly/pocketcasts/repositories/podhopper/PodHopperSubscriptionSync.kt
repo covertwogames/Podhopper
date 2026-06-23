@@ -81,7 +81,6 @@ class PodHopperSubscriptionSync @Inject constructor(
             if (!feedUrl.isNullOrBlank()) {
                 rememberFeedUrl(uuid, feedUrl)
                 queueAdd(feedUrl)
-                LogBuffer.i(LogBuffer.TAG_BACKGROUND_TASKS, "SUBSYNC queued add feed=$feedUrl")
             }
         } else {
             // The podcast row is already gone, so recover its feed url from the remembered mapping.
@@ -89,7 +88,6 @@ class PodHopperSubscriptionSync @Inject constructor(
             if (!feedUrl.isNullOrBlank()) {
                 queueRemove(feedUrl)
                 forgetFeedUrl(uuid)
-                LogBuffer.i(LogBuffer.TAG_BACKGROUND_TASKS, "SUBSYNC queued remove feed=$feedUrl")
             }
         }
     }
@@ -161,10 +159,6 @@ class PodHopperSubscriptionSync @Inject constructor(
                 newest = updatedAtMs
             }
         }
-        LogBuffer.i(
-            LogBuffer.TAG_BACKGROUND_TASKS,
-            "SUBSYNC pull lastSync=$lastSync remoteAdded=${remoteAdded.size} remoteRemoved=${remoteRemoved.size} local=${localSubscriptions.size}",
-        )
 
         val queuedAdded = readQueue(PREF_QUEUE_ADDED).toMutableList()
         val queuedRemoved = readQueue(PREF_QUEUE_REMOVED).toMutableList()
@@ -176,7 +170,6 @@ class PodHopperSubscriptionSync @Inject constructor(
                 if (localSubscriptions.contains(feedUrl) || queuedRemoved.contains(feedUrl)) {
                     continue
                 }
-                LogBuffer.i(LogBuffer.TAG_BACKGROUND_TASKS, "SUBSYNC applying remote add feed=$feedUrl")
                 manager.subscribeToFeedUrl(feedUrl)
             }
             // Apply remote removes, skipping feeds we just re-subscribed to locally.
@@ -186,7 +179,6 @@ class PodHopperSubscriptionSync @Inject constructor(
                 }
                 val uuid = feedParser.podcastUuidForFeed(feedUrl)
                 if (manager.findPodcastByUuid(uuid)?.isSubscribed == true) {
-                    LogBuffer.i(LogBuffer.TAG_BACKGROUND_TASKS, "SUBSYNC applying remote remove feed=$feedUrl")
                     manager.unsubscribe(uuid, SourceView.UNKNOWN)
                 }
             }
@@ -209,7 +201,6 @@ class PodHopperSubscriptionSync @Inject constructor(
 
         if (newest > lastSync) {
             prefs().edit().putLong(PREF_LAST_PULL_MS, newest).apply()
-            LogBuffer.i(LogBuffer.TAG_BACKGROUND_TASKS, "SUBSYNC cursor=$newest")
         }
     }
 
@@ -225,7 +216,6 @@ class PodHopperSubscriptionSync @Inject constructor(
         }
         if (rows.length() > 0) {
             supabaseClient.upsert(TABLE_SUBSCRIPTIONS, "user_id,feed_url", rows)
-            LogBuffer.i(LogBuffer.TAG_BACKGROUND_TASKS, "SUBSYNC upload added=${added.size} removed=${removed.size}")
         }
     }
 

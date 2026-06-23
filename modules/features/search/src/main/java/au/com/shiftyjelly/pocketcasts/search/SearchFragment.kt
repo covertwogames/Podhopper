@@ -41,6 +41,7 @@ import au.com.shiftyjelly.pocketcasts.search.searchhistory.SearchHistoryClearAll
 import au.com.shiftyjelly.pocketcasts.search.searchhistory.SearchHistoryPage
 import au.com.shiftyjelly.pocketcasts.search.searchhistory.SearchHistoryViewModel
 import au.com.shiftyjelly.pocketcasts.ui.extensions.getThemeColor
+import au.com.shiftyjelly.pocketcasts.ui.helper.FragmentHostListener
 import au.com.shiftyjelly.pocketcasts.utils.extensions.pxToDp
 import au.com.shiftyjelly.pocketcasts.utils.featureflag.Feature
 import au.com.shiftyjelly.pocketcasts.utils.featureflag.FeatureFlag
@@ -347,7 +348,18 @@ class SearchFragment : BaseFragment() {
                                 state = state,
                                 loading = state.isLoading,
                                 onEpisodeClick = { onEpisodeClick(episode = SearchHistoryEntry.fromImprovedEpisodeResult(it)) },
-                                onPodcastClick = { onPodcastClick(SearchHistoryEntry.fromImprovedPodcastResult(it), it.isFollowed) },
+                                onPodcastClick = { item ->
+                                    val feedUrl = item.feedUrl
+                                    if (!item.isFollowed && !feedUrl.isNullOrBlank()) {
+                                        UiUtil.hideKeyboard(searchView)
+                                        (activity as? FragmentHostListener)?.addFragment(
+                                            FeedPreviewFragment.newInstance(feedUrl),
+                                            onTop = true,
+                                        )
+                                    } else {
+                                        onPodcastClick(SearchHistoryEntry.fromImprovedPodcastResult(item), item.isFollowed)
+                                    }
+                                },
                                 onFolderClick = ::onFolderClick,
                                 onFollowPodcast = { viewModel.onSubscribeToPodcast(it) },
                                 playButtonListener = playButtonListener,

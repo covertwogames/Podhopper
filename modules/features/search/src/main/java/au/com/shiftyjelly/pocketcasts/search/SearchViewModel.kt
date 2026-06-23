@@ -211,7 +211,22 @@ class SearchViewModel @Inject constructor(
 
     fun onSubscribeToPodcast(uuid: String) {
         podcastManager.subscribeToPodcast(podcastUuid = uuid, sync = true)
+        markPodcastSubscribed(uuid)
+    }
 
+    fun onSubscribeToPodcast(item: ImprovedSearchResultItem.PodcastItem) {
+        val feedUrl = item.feedUrl
+        if (feedUrl.isNullOrBlank()) {
+            // Local or autocomplete result with no feed url: re-subscribe the existing podcast.
+            onSubscribeToPodcast(item.uuid)
+        } else {
+            // iTunes search result: add it through the feed engine by its real RSS url.
+            viewModelScope.launch { podcastManager.subscribeToFeedUrl(feedUrl) }
+            markPodcastSubscribed(item.uuid)
+        }
+    }
+
+    private fun markPodcastSubscribed(uuid: String) {
         // Optimistically update subscribe status
         _state.update {
             when (it) {

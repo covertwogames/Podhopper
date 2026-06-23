@@ -132,8 +132,10 @@ class ProfileViewModel @Inject constructor(
     internal val isFreeAccountBannerVisible = combine(
         signInState.map { it.isSignedIn },
         settings.isFreeAccountProfileBannerDismissed.flow,
-    ) { isSignedIn, isBannerDismissed ->
-        !isSignedIn && !isBannerDismissed
+    ) { _, _ ->
+        // PodHopper: never nag to sign into a Pocket Casts account. The PodHopper account lives in
+        // settings and is independent of this Pocket Casts sign-in state.
+        false
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,

@@ -411,14 +411,23 @@ private fun PodcastRatingOrSpacing(
         val height = dummyRating.height.toDp()
 
         val ratingUi = subcompose("rating") {
-            when (rating) {
-                is RatingState.Loaded -> PodcastRating(
+            when {
+                // PodHopper: ratings came from the Pocket Casts community server, keyed by their
+                // podcast ids. Feed podcasts are not in that database and RSS feeds do not carry
+                // ratings, so there is nothing to show. Collapse the row to nothing rather than
+                // display a permanent "No ratings". This branch must still emit exactly one node
+                // because the SubcomposeLayout below measures it by index.
+                rating is RatingState.Loaded && rating.noRatings -> Spacer(
+                    modifier = Modifier.size(0.dp, 0.dp),
+                )
+
+                rating is RatingState.Loaded -> PodcastRating(
                     state = rating,
                     onClick = onClickRating,
                     modifier = Modifier.padding(top = 2.dp, bottom = 6.dp),
                 )
 
-                is RatingState.Error, is RatingState.Loading -> Spacer(
+                else -> Spacer(
                     modifier = Modifier.size(width, height),
                 )
             }

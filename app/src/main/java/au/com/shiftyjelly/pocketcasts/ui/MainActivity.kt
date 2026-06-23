@@ -113,7 +113,6 @@ import au.com.shiftyjelly.pocketcasts.deeplink.UpsellDeepLink
 import au.com.shiftyjelly.pocketcasts.discover.util.DiscoverDeepLinkManager
 import au.com.shiftyjelly.pocketcasts.discover.util.DiscoverDeepLinkManager.Companion.RECOMMENDATIONS_USER
 import au.com.shiftyjelly.pocketcasts.discover.util.DiscoverDeepLinkManager.Companion.STAFF_PICKS_LIST_ID
-import au.com.shiftyjelly.pocketcasts.discover.view.DiscoverFragment
 import au.com.shiftyjelly.pocketcasts.discover.view.PodcastGridListFragment
 import au.com.shiftyjelly.pocketcasts.discover.view.PodcastListFragment
 import au.com.shiftyjelly.pocketcasts.endofyear.StoriesActivity
@@ -245,7 +244,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import android.provider.Settings as AndroidProviderSettings
@@ -375,7 +373,7 @@ class MainActivity :
 
             is OnboardingFinish.DoneGoToDiscover -> {
                 settings.setHasDoneInitialOnboarding()
-                openTab(VR.id.navigation_discover)
+                openTab(VR.id.navigation_podcasts)
             }
 
             is OnboardingFinish.DoneShowPlusPromotion -> {
@@ -555,6 +553,9 @@ class MainActivity :
         }
 
         binding.bottomNavigation.inflateMenu(VR.menu.navigation)
+        // PodHopper: Discover is removed. Strip its tab so the menu item never shows and its
+        // fragment never loads.
+        binding.bottomNavigation.menu.removeItem(VR.id.navigation_discover)
 
         lifecycleScope.launch {
             lifecycle.repeatOnLifecycle(Lifecycle.State.CREATED) {
@@ -574,7 +575,6 @@ class MainActivity :
         val tabs = buildMap {
             put(VR.id.navigation_podcasts) { FragmentInfo(PodcastsFragment(), true) }
             put(VR.id.navigation_filters) { FragmentInfo(PlaylistsFragment(), true) }
-            put(VR.id.navigation_discover) { FragmentInfo(DiscoverFragment(), false) }
             put(VR.id.navigation_profile) { FragmentInfo(ProfileFragment(), true) }
             put(VR.id.navigation_upnext) {
                 FragmentInfo(
@@ -594,11 +594,8 @@ class MainActivity :
         }
 
         if (selectedTab == null) {
-            // We cheat a little here and block because we need to know the podcast count to work out the default tab.
-            // The navigator has to be initialised in onCreate or else race conditions happen
-            val podcastCount = runBlocking(Dispatchers.Default) { podcastManager.countSubscribed() }
-            selectedTab =
-                if (podcastCount == 0) VR.id.navigation_discover else VR.id.navigation_podcasts
+            // PodHopper: Discover is gone, so Podcasts is always the default landing tab.
+            selectedTab = VR.id.navigation_podcasts
         }
 
         navigator = BottomNavigator.onCreateWithDetachability(
@@ -1376,9 +1373,7 @@ class MainActivity :
     }
 
     private suspend fun openLandingTabAfterOnboarding() {
-        val podcastCount = podcastManager.countSubscribed()
-        val landingTab = if (podcastCount == 0) VR.id.navigation_discover else VR.id.navigation_podcasts
-        openTab(landingTab)
+        openTab(VR.id.navigation_podcasts)
     }
 
     override fun showBottomSheet(fragment: Fragment) {
@@ -1643,7 +1638,7 @@ class MainActivity :
 
                 is ShowDiscoverDeepLink -> {
                     closePlayer()
-                    openTab(VR.id.navigation_discover)
+                    openTab(VR.id.navigation_podcasts)
                 }
 
                 is ShowUpNextModalDeepLink -> {
@@ -1792,7 +1787,7 @@ class MainActivity :
 
     private fun openDiscoverListDeeplink(listId: String) {
         closePlayer()
-        openTab(VR.id.navigation_discover)
+        openTab(VR.id.navigation_podcasts)
         lifecycleScope.launch {
             val discoverList = discoverDeepLinkManager.getDiscoverList(listId, resources) ?: return@launch
             val fragment = PodcastListFragment.newInstance(discoverList)

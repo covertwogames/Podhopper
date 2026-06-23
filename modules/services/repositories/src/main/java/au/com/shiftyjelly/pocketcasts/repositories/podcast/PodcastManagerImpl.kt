@@ -29,6 +29,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.sync.SyncManager
 import au.com.shiftyjelly.pocketcasts.servers.refresh.RefreshServiceManager
 import au.com.shiftyjelly.pocketcasts.servers.refresh.UpdatePodcastResponse.EpisodeFound
 import au.com.shiftyjelly.pocketcasts.servers.refresh.UpdatePodcastResponse.Retry
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperSubscriptionSync
 import au.com.shiftyjelly.pocketcasts.utils.log.LogBuffer
 import com.jakewharton.rxrelay2.PublishRelay
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -66,6 +67,7 @@ class PodcastManagerImpl @Inject constructor(
     private val downloadQueue: DownloadQueue,
     @ApplicationScope private val applicationScope: CoroutineScope,
     appDatabase: AppDatabase,
+    private val podHopperSubscriptionSync: PodHopperSubscriptionSync,
 ) : PodcastManager,
     CoroutineScope {
 
@@ -99,6 +101,13 @@ class PodcastManagerImpl @Inject constructor(
             downloadQueue.cancelAll(podcast.uuid, sourceView)
 
             unsubscribeRelay.accept(podcastUuid)
+
+            // PodHopper: mirror this unsubscribe to the cloud, keyed by the podcast's feed url.
+            // Suppressed automatically when applying a remote change (echo prevention).
+            val feedUrl = podcast.podcastUrl
+            if (!feedUrl.isNullOrBlank()) {
+                podHopperSubscriptionSync.pushSubscription(feedUrl, subscribed = false)
+            }
         } catch (t: Throwable) {
             LogBuffer.e(LogBuffer.TAG_BACKGROUND_TASKS, t, "Could not unsubscribe from $podcastUuid")
         }

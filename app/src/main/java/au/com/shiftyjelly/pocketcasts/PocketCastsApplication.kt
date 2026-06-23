@@ -9,7 +9,6 @@ import au.com.shiftyjelly.pocketcasts.analytics.AnalyticsController
 import au.com.shiftyjelly.pocketcasts.analytics.experiments.ExperimentProvider
 import au.com.shiftyjelly.pocketcasts.coroutines.di.ApplicationScope
 import au.com.shiftyjelly.pocketcasts.crashlogging.InitializeRemoteLogging
-import au.com.shiftyjelly.pocketcasts.discover.worker.CuratedPodcastsSyncWorker
 import au.com.shiftyjelly.pocketcasts.engage.EngageSdkBridge
 import au.com.shiftyjelly.pocketcasts.models.db.dao.UpNextDao
 import au.com.shiftyjelly.pocketcasts.models.type.EpisodeDownloadStatus
@@ -31,7 +30,6 @@ import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.UserEpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.shortcuts.DynamicShortcutsSynchronizer
-import au.com.shiftyjelly.pocketcasts.repositories.stats.PlaybackStatsSyncWorker
 import au.com.shiftyjelly.pocketcasts.repositories.support.DatabaseExportHelper
 import au.com.shiftyjelly.pocketcasts.repositories.user.StatsManager
 import au.com.shiftyjelly.pocketcasts.repositories.user.UserManager
@@ -291,7 +289,6 @@ class PocketCastsApplication :
         userEpisodeManager.monitorUploads(applicationContext)
         downloadStatusObserver.monitorDownloadStatus()
         userManager.beginMonitoringAccountManager(playbackManager)
-        CuratedPodcastsSyncWorker.enqueuePeriodicWork(this)
         engageSdkBridge.registerIntegration()
         shortcutsSynchronizer.keepShortcutsInSync()
         playlistInteractionNotifier.monitorPlaylistsInteraction()
@@ -302,9 +299,6 @@ class PocketCastsApplication :
         if (FeatureFlag.isEnabled(Feature.SYNC_EOY_DATA_ON_STARTUP)) {
             applicationScope.launch { endOfYearSync.sync() }
         }
-
-        PlaybackStatsSyncWorker.scheduleOneTimeWork(this)
-        PlaybackStatsSyncWorker.schedulePeriodicWork(this)
 
         Timber.i("Launched ${BuildConfig.APPLICATION_ID}")
     }

@@ -43,7 +43,6 @@ import au.com.shiftyjelly.pocketcasts.repositories.ratings.RatingsManager
 import au.com.shiftyjelly.pocketcasts.repositories.subscription.SubscriptionManager
 import au.com.shiftyjelly.pocketcasts.repositories.sync.NotificationBroadcastReceiver
 import au.com.shiftyjelly.pocketcasts.repositories.sync.SyncManager
-import au.com.shiftyjelly.pocketcasts.repositories.sync.data.DataSyncProcess
 import au.com.shiftyjelly.pocketcasts.repositories.user.StatsManager
 import au.com.shiftyjelly.pocketcasts.repositories.user.UserManager
 import au.com.shiftyjelly.pocketcasts.servers.RefreshResponse
@@ -240,38 +239,10 @@ class RefreshPodcastsThread(
     }
 
     private fun sync(): RefreshState {
-        val entryPoint = getEntryPoint()
-        val userManager = entryPoint.userManager()
-        val playbackManager = entryPoint.playbackManager()
-
-        val process = DataSyncProcess(
-            syncManager = entryPoint.syncManager(),
-            podcastManager = entryPoint.podcastManager(),
-            episodeManager = entryPoint.episodeManager(),
-            userEpisodeManager = entryPoint.userEpisodeManager(),
-            folderManager = entryPoint.folderManager(),
-            playbackManager = entryPoint.playbackManager(),
-            statsManager = entryPoint.statsManager(),
-            subscriptionManager = entryPoint.subscriptionManager(),
-            ratingsManager = entryPoint.ratingsManager(),
-            appDatabase = entryPoint.appDatabase(),
-            settings = entryPoint.settings(),
-            fileStorage = entryPoint.fileStorage(),
-            context = context,
-        )
-        val result = runBlocking {
-            process.sync()
-        }
-        return result
-            .onFailure { error ->
-                if (error is RefreshTokenExpiredException) {
-                    userManager.signOut(playbackManager, wasInitiatedByUser = false)
-                }
-            }
-            .map { RefreshState.Success(Date()) }
-            .getOrElse { error ->
-                RefreshState.Failed("Sync threw an error: ${error.message}")
-            }
+        // PodHopper: there is no Pocket Casts account sync. New episodes are refreshed on-device by
+        // re-parsing each subscribed feed (see refresh()), and subscriptions and playback positions
+        // sync through Supabase, so there is nothing to sync against a server here.
+        return RefreshState.Success(Date())
     }
 
     private fun refreshFailedOrCancelled(message: String) {

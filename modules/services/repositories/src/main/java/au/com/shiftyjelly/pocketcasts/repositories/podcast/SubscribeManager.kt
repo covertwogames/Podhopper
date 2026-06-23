@@ -171,16 +171,19 @@ class SubscribeManager @Inject constructor(
     }
 
     private fun subscribeToExistingOrServerPodcastRxSingle(podcastUuid: String, sync: Boolean, subscribed: Boolean, shouldAutoDownload: Boolean): Single<Podcast> {
-        // check if the podcast exists already
-        val subscribedObservable = podcastDao.isSubscribedToPodcastRxSingle(podcastUuid)
-        return subscribedObservable.flatMap { isSubscribed ->
-            // download the podcast json and add to the database if it doesn't exist
-            if (isSubscribed) {
-                subscribeToExistingPodcastRxSingle(podcastUuid, sync)
-            } else {
-                subscribeToServerPodcastRxSingle(podcastUuid, sync, subscribed, shouldAutoDownload)
+        // PodHopper: never fetch a podcast from the Pocket Casts server. Podcasts only ever enter
+        // the app through the client feed engine (an RSS url paste or an iTunes search result). If
+        // the podcast already exists locally we re-subscribe it; an unknown id fails gracefully with
+        // no network call. This is what stops stray server podcasts from ever being created again.
+        return podcastDao.findByUuidRxMaybe(podcastUuid)
+            .isEmpty()
+            .flatMap { isEmpty ->
+                if (isEmpty) {
+                    Single.error(NoSuchElementException("PodHopper: podcast $podcastUuid is not a local feed podcast; server subscribe is disabled"))
+                } else {
+                    subscribeToExistingPodcastRxSingle(podcastUuid, sync)
+                }
             }
-        }
     }
 
     private fun subscribeToExistingPodcastRxSingle(podcastUuid: String, sync: Boolean): Single<Podcast> {
@@ -194,6 +197,7 @@ class SubscribeManager @Inject constructor(
         return updateObservable.andThen(findObservable.toSingle())
     }
 
+    @Suppress("unused")
     private fun subscribeToServerPodcastRxSingle(podcastUuid: String, sync: Boolean, subscribed: Boolean, shouldAutoDownload: Boolean): Single<Podcast> {
         // download the podcast
         val podcastObservable = downloadPodcastRxSingle(podcastUuid)

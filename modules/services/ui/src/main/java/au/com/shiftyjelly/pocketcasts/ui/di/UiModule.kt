@@ -1,6 +1,7 @@
 package au.com.shiftyjelly.pocketcasts.ui.di
 
 import android.content.Context
+import au.com.shiftyjelly.pocketcasts.repositories.images.FeedArtworkInterceptor
 import au.com.shiftyjelly.pocketcasts.servers.di.Artwork
 import coil3.ImageLoader
 import coil3.disk.DiskCache
@@ -25,10 +26,12 @@ class UiModule {
     internal fun provideCoilImageLoader(
         @ApplicationContext context: Context,
         @Artwork httpClient: Lazy<OkHttpClient>,
+        feedArtworkInterceptor: FeedArtworkInterceptor,
     ): ImageLoader {
         return ImageLoader.Builder(context)
             .crossfade(true)
             .components {
+                add(feedArtworkInterceptor)
                 add(
                     OkHttpNetworkFetcherFactory(
                         callFactory = { httpClient.get() },

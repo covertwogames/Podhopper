@@ -51,7 +51,16 @@ data class PocketCastsImageRequestFactory(
     fun create(
         podcast: PodcastEntity,
         onSuccess: () -> Unit = {},
-    ) = create(RequestType.Podcast(podcast.uuid), onSuccess)
+    ): ImageRequest {
+        // PodHopper: feed podcasts carry their own artwork url from the RSS feed. Use it directly
+        // instead of the Pocket Casts image server, which has no entry for feed podcasts.
+        val feedArtwork = podcast.thumbnailUrl
+        return if (!feedArtwork.isNullOrBlank()) {
+            create(RequestType.FileOrUrl(feedArtwork), onSuccess)
+        } else {
+            create(RequestType.Podcast(podcast.uuid), onSuccess)
+        }
+    }
 
     fun create(
         episode: BaseEpisode,

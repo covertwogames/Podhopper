@@ -64,14 +64,22 @@ fun PodcastImage(
         PlaceholderType.Small
     },
     contentDescription: String? = stringResource(LR.string.podcast_artwork_description),
+    imageUrl: String? = null,
 ) {
     val context = LocalContext.current
-    val imageRequest = remember(uuid, placeholderType, imageRequestSize) {
-        PocketCastsImageRequestFactory(
+    val imageRequest = remember(uuid, imageUrl, placeholderType, imageRequestSize) {
+        val factory = PocketCastsImageRequestFactory(
             context = context,
             placeholderType = placeholderType,
             size = imageRequestSize.value.toInt(),
-        ).themed().createForPodcast(uuid)
+        ).themed()
+        // PodHopper: when a direct artwork url is supplied (iTunes search result or feed image),
+        // load it instead of the id-based Pocket Casts image url, which has no feed podcasts.
+        if (!imageUrl.isNullOrBlank()) {
+            factory.createForFileOrUrl(imageUrl)
+        } else {
+            factory.createForPodcast(uuid)
+        }
     }
     val shape = if (cornerSize != null) {
         RoundedCornerShape(cornerSize)

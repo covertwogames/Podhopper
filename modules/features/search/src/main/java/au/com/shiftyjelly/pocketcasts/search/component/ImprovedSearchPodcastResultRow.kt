@@ -64,6 +64,7 @@ fun ImprovedSearchPodcastResultRow(
         author = podcastItem.author,
         isSubscribed = podcastItem.isFollowed,
         isExplicit = podcastItem.isExplicit,
+        imageUrl = podcastItem.imageUrl,
         onClick = onClick,
         onFollow = onFollow,
         modifier = modifier,
@@ -80,6 +81,7 @@ private fun ImprovedSearchPodcastResultRow(
     onClick: () -> Unit,
     onFollow: () -> Unit,
     modifier: Modifier = Modifier,
+    imageUrl: String? = null,
 ) {
     val showExplicitIndicator by FeatureFlag
         .isEnabledFlow(Feature.EXPLICIT_PODCAST_INDICATOR)
@@ -94,6 +96,7 @@ private fun ImprovedSearchPodcastResultRow(
     ) {
         PodcastImage(
             uuid = podcastUuid,
+            imageUrl = imageUrl,
             elevation = 6.dp,
             cornerSize = 4.dp,
         )

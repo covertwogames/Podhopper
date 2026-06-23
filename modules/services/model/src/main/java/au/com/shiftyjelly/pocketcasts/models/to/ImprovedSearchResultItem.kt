@@ -23,6 +23,8 @@ sealed interface ImprovedSearchResultItem {
         val author: String,
         val isFollowed: Boolean,
         val isExplicit: Boolean = false,
+        val feedUrl: String? = null,
+        val imageUrl: String? = null,
     ) : ImprovedSearchResultItem
 
     data class EpisodeItem(

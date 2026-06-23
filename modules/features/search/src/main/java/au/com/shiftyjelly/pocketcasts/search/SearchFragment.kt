@@ -349,7 +349,7 @@ class SearchFragment : BaseFragment() {
                                 onEpisodeClick = { onEpisodeClick(episode = SearchHistoryEntry.fromImprovedEpisodeResult(it)) },
                                 onPodcastClick = { onPodcastClick(SearchHistoryEntry.fromImprovedPodcastResult(it), it.isFollowed) },
                                 onFolderClick = ::onFolderClick,
-                                onFollowPodcast = { viewModel.onSubscribeToPodcast(it.uuid) },
+                                onFollowPodcast = { viewModel.onSubscribeToPodcast(it) },
                                 playButtonListener = playButtonListener,
                                 onScroll = { UiUtil.hideKeyboard(searchView) },
                                 bottomInset = bottomInset.pxToDp(LocalContext.current).dp,

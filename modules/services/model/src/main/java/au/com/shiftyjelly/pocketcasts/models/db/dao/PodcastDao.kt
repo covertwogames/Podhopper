@@ -31,6 +31,11 @@ abstract class PodcastDao {
     @Query("SELECT * FROM podcasts WHERE uuid IN (:uuids)")
     protected abstract suspend fun findAllInUnsafe(uuids: Collection<String>): List<Podcast>
 
+    // PodHopper: used by FeedArtworkInterceptor to swap an id-based Pocket Casts artwork url for the
+    // feed image url saved on the podcast. Returns null when the podcast is not stored locally.
+    @Query("SELECT thumbnail_url FROM podcasts WHERE uuid = :uuid LIMIT 1")
+    abstract suspend fun findThumbnailUrlByUuid(uuid: String): String?
+
     @Transaction
     open suspend fun findAllIn(uuids: Collection<String>): List<Podcast> {
         return uuids.chunked(AppDatabase.SQLITE_BIND_ARG_LIMIT).flatMap { chunk ->

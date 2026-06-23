@@ -168,6 +168,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.UserEpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperPositionSync
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperSubscriptionSync
 import au.com.shiftyjelly.pocketcasts.repositories.refresh.RefreshPodcastsTask
 import au.com.shiftyjelly.pocketcasts.repositories.sync.SyncManager
 import au.com.shiftyjelly.pocketcasts.search.SearchFragment
@@ -279,6 +280,9 @@ class MainActivity :
 
     @Inject
     lateinit var podHopperPositionSync: PodHopperPositionSync
+
+    @Inject
+    lateinit var podHopperSubscriptionSync: PodHopperSubscriptionSync
 
     @Inject
     lateinit var podcastManager: PodcastManager
@@ -719,6 +723,10 @@ class MainActivity :
 
         // PodHopper: pull the latest cross device positions when the app comes to the foreground.
         podHopperPositionSync.pullLatestPositions()
+
+        // PodHopper: pull subscription changes too, so a podcast added on another device shows up
+        // here even though we did not subscribe to anything locally to trigger it.
+        podHopperSubscriptionSync.pullSubscriptions()
 
         if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
             if (!videoPlayerShown && playbackManager.getCurrentEpisode()?.isVideo == true && playbackManager.isPlaybackLocal() && playbackManager.isPlaying() && viewModel.isPlayerOpen) {

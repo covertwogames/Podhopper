@@ -31,7 +31,7 @@ class FeedPreviewViewModel @Inject constructor(
 
     sealed interface UiState {
         data object Loading : UiState
-        data object Error : UiState
+        data class Error(val reason: String?) : UiState
         data class Loaded(
             val podcastUuid: String,
             val title: String,
@@ -62,10 +62,13 @@ class FeedPreviewViewModel @Inject constructor(
         this.feedUrl = feedUrl
         _uiState.value = UiState.Loading
         viewModelScope.launch {
-            val parsed = withContext(Dispatchers.IO) { feedParser.parse(feedUrl) }
-            if (parsed == null) {
-                _uiState.value = UiState.Error
-                return@launch
+            val result = withContext(Dispatchers.IO) { feedParser.fetch(feedUrl) }
+            val parsed = when (result) {
+                is FeedParser.FeedResult.Success -> result.feed
+                is FeedParser.FeedResult.Failure -> {
+                    _uiState.value = UiState.Error(result.reason)
+                    return@launch
+                }
             }
             val uuid = parsed.podcast.uuid
             val alreadySubscribed = podcastManager.findPodcastByUuid(uuid)?.isSubscribed == true

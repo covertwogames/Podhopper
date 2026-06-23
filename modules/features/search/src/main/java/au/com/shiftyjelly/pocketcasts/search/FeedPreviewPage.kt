@@ -40,7 +40,7 @@ fun FeedPreviewPage(
         )
         when (state) {
             is FeedPreviewViewModel.UiState.Loading -> CenteredProgress()
-            is FeedPreviewViewModel.UiState.Error -> ErrorState(onRetry = onRetry)
+            is FeedPreviewViewModel.UiState.Error -> ErrorState(reason = state.reason, onRetry = onRetry)
             is FeedPreviewViewModel.UiState.Loaded -> LoadedState(
                 state = state,
                 onSubscribe = onSubscribe,
@@ -62,7 +62,7 @@ private fun CenteredProgress() {
 }
 
 @Composable
-private fun ErrorState(onRetry: () -> Unit) {
+private fun ErrorState(reason: String?, onRetry: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -74,6 +74,13 @@ private fun ErrorState(onRetry: () -> Unit) {
             text = "This feed could not be loaded.",
             textAlign = TextAlign.Center,
         )
+        if (!reason.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            TextP50(
+                text = reason,
+                textAlign = TextAlign.Center,
+            )
+        }
         Spacer(modifier = Modifier.height(16.dp))
         RowButton(
             text = "Retry",

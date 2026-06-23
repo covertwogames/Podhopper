@@ -168,6 +168,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.playlist.Playlist
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.UserEpisodeManager
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperPositionSync
 import au.com.shiftyjelly.pocketcasts.repositories.refresh.RefreshPodcastsTask
 import au.com.shiftyjelly.pocketcasts.repositories.sync.SyncManager
 import au.com.shiftyjelly.pocketcasts.search.SearchFragment
@@ -277,6 +278,9 @@ class MainActivity :
 
     @Inject
     lateinit var playbackManager: PlaybackManager
+
+    @Inject
+    lateinit var podHopperPositionSync: PodHopperPositionSync
 
     @Inject
     lateinit var podcastManager: PodcastManager
@@ -715,6 +719,10 @@ class MainActivity :
 
     override fun onStart() {
         super.onStart()
+
+        // PodHopper: pull the latest cross device positions when the app comes to the foreground.
+        podHopperPositionSync.pullLatestPositions()
+
         if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
             if (!videoPlayerShown && playbackManager.getCurrentEpisode()?.isVideo == true && playbackManager.isPlaybackLocal() && playbackManager.isPlaying() && viewModel.isPlayerOpen) {
                 openFullscreenViewPlayer()

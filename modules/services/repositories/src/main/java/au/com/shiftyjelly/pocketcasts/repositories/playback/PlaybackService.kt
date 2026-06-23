@@ -12,6 +12,7 @@ import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import au.com.shiftyjelly.pocketcasts.analytics.SourceView
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperPositionSync
 import au.com.shiftyjelly.pocketcasts.utils.Util
 import au.com.shiftyjelly.pocketcasts.utils.log.LogBuffer
 import com.automattic.eventhorizon.EventHorizon
@@ -62,6 +63,8 @@ open class PlaybackService :
 
     @Inject lateinit var eventHorizon: EventHorizon
 
+    @Inject lateinit var podHopperPositionSync: PodHopperPositionSync
+
     private val job = SupervisorJob()
     override val coroutineContext: CoroutineContext
         get() = job + Dispatchers.Default
@@ -79,6 +82,10 @@ open class PlaybackService :
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
+
+        // PodHopper: pull the latest cross device positions before audio starts so the car
+        // resumes where the phone left off.
+        podHopperPositionSync.pullLatestPositions()
 
         LogBuffer.i(LogBuffer.TAG_PLAYBACK, "Playback service created")
 
@@ -156,6 +163,10 @@ open class PlaybackService :
     }
 
     override fun onDestroy() {
+        // PodHopper: push the current position on shutdown so the other device gets the latest.
+        // The upload runs on the application scope, so it survives the service being destroyed.
+        podHopperPositionSync.pushCurrentPosition(immediate = true)
+
         super.onDestroy()
         playbackManager.mediaSessionManager.release()
 

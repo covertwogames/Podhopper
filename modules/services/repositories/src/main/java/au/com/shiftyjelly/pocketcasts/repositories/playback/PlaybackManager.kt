@@ -56,6 +56,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.UserEpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.toServerPostFile
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperPositionSync
 import au.com.shiftyjelly.pocketcasts.repositories.shownotes.ShowNotesManager
 import au.com.shiftyjelly.pocketcasts.repositories.sync.NotificationBroadcastReceiver
 import au.com.shiftyjelly.pocketcasts.repositories.sync.SyncManager
@@ -162,6 +163,7 @@ open class PlaybackManager @Inject constructor(
     private val notificationManager: NotificationManager,
     private val autoPlaySelector: AutoPlaySelector,
     private val browseTreeProvider: BrowseTreeProvider,
+    private val podHopperPositionSync: PodHopperPositionSync,
 ) : FocusManager.FocusChangeListener,
     AudioNoisyManager.AudioBecomingNoisyListener,
     CoroutineScope {
@@ -222,6 +224,8 @@ open class PlaybackManager @Inject constructor(
     private var bufferUpdateTimerDisposable: Disposable? = null
     private var pauseTimerDisposable: Disposable? = null
     private var syncTimerDisposable: Disposable? = null
+
+    private var podHopperSyncDisposable: Disposable? = null
     private var lastWarnedPlayedEpisodeUuid: String? = null
     private var lastPlayedEpisodeUuid: String? = null
     private var lastTrackedAutoPlaySource: AutoPlaySource? = null
@@ -378,6 +382,26 @@ open class PlaybackManager @Inject constructor(
             .subscribeBy(
                 onNext = {
                     LogBuffer.i(LogBuffer.TAG_PLAYBACK, "Synced episode progress")
+                },
+            )
+
+        // PodHopper: dedicated 5 second position push so the car always resumes at a fresh
+        // position. Sits beside Pocket Casts' own save above (default 60 seconds) without
+        // disturbing it. The 4 second throttle inside the sync class keeps this from bursting.
+        podHopperSyncDisposable?.dispose()
+        podHopperSyncDisposable = playbackStateRelay.sample(5000L, TimeUnit.MILLISECONDS)
+            .subscribeBy(
+                onNext = { state ->
+                    if (state.isPlaying) {
+                        getCurrentEpisode()?.let { episode ->
+                            if (state.episodeUuid == episode.uuid) {
+                                podHopperPositionSync.pushPosition(episode, state.positionMs, state.durationMs, immediate = false)
+                            }
+                        }
+                    }
+                },
+                onError = {
+                    LogBuffer.e(LogBuffer.TAG_PLAYBACK, "PodHopper periodic position push error. ${it.message ?: ""}")
                 },
             )
     }
@@ -1464,6 +1488,11 @@ open class PlaybackManager @Inject constructor(
                 episode?.let { episode ->
                     resumptionHelper.paused(episode, positionMs)
                 }
+
+                // PodHopper: immediate position push on pause so the other device resumes exactly here.
+                episode?.let { paused ->
+                    podHopperPositionSync.pushPosition(paused, positionMs, paused.durationMs, immediate = true)
+                }
             }
         }
 
@@ -2234,6 +2263,14 @@ open class PlaybackManager @Inject constructor(
             }
         }
 
+        // PodHopper: pull this episode's latest cross-device position and apply it before we read
+        // the resume point, so play starts from the synced position. Time-bounded, so a slow or
+        // offline network falls back to the local position instead of hanging.
+        val podHopperPullResult = podHopperPositionSync.applyRemotePositionBeforePlay(episode)
+        if (podHopperPullResult == PodHopperPositionSync.PlayPullResult.FAILED) {
+            showToast("Couldn't sync playback position from the cloud. Playing from this device.")
+        }
+
         val currentTimeMs = resumptionHelper.adjustedStartTimeMsFor(episode)
         LogBuffer.i(
             LogBuffer.TAG_PLAYBACK, "Play %.3f %s Player. %s Downloaded: %b, Downloading: %b, Audio: %b, File: %s, EpisodeUuid: %s, PodcastUuid: %s",
@@ -2248,6 +2285,11 @@ open class PlaybackManager @Inject constructor(
             (episode as? PodcastEpisode)?.podcastUuid ?: "User File",
         )
 
+        // PodHopper: if we applied a synced position and the player is already prepared on this
+        // episode (a resume), preparing alone will not move it, so seek explicitly first.
+        if (podHopperPullResult == PodHopperPositionSync.PlayPullResult.APPLIED && player?.episodeUuid == episode.uuid) {
+            player?.seekToTimeMs(currentTimeMs)
+        }
         player?.play(currentTimeMs)
 
         // SimplePlayer creates its ExoPlayer lazily in prepare(), which is called
@@ -2485,6 +2527,7 @@ open class PlaybackManager @Inject constructor(
     private fun cancelUpdateTimer() {
         updateTimerDisposable?.dispose()
         syncTimerDisposable?.dispose()
+        podHopperSyncDisposable?.dispose()
         episodeSubscription?.dispose()
     }
 

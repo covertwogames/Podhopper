@@ -64,6 +64,7 @@ import au.com.shiftyjelly.pocketcasts.account.onboarding.AccountBenefitsFragment
 import au.com.shiftyjelly.pocketcasts.account.onboarding.OnboardingActivity
 import au.com.shiftyjelly.pocketcasts.account.onboarding.OnboardingActivityContract
 import au.com.shiftyjelly.pocketcasts.account.onboarding.OnboardingActivityContract.OnboardingFinish
+import au.com.shiftyjelly.pocketcasts.account.onboarding.podhopper.PodHopperOnboardingActivity
 import au.com.shiftyjelly.pocketcasts.account.watchsync.WatchSync
 import au.com.shiftyjelly.pocketcasts.analytics.SourceView
 import au.com.shiftyjelly.pocketcasts.appreview.AppReviewDialogFragment
@@ -367,6 +368,11 @@ class MainActivity :
     private lateinit var binding: ActivityMainBinding
     private lateinit var navigator: BottomNavigator
 
+    private val podHopperOnboardingLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            openTab(VR.id.navigation_podcasts)
+        }
+
     private val onboardingLauncher: ActivityResultLauncher<Intent> = registerForActivityResult(OnboardingActivityContract()) { result ->
         when (result) {
             is OnboardingFinish.Done -> {
@@ -485,7 +491,7 @@ class MainActivity :
         val needsLoginPromptAfterRestore = settings.getNeedsLoginPromptAfterRestore()
         // Only show if savedInstanceState is null in order to avoid creating onboarding activity twice.
         if (showOnboarding && savedInstanceState == null) {
-            openOnboardingFlow(OnboardingFlow.InitialOnboarding)
+            podHopperOnboardingLauncher.launch(PodHopperOnboardingActivity.newInstance(this))
         }
 
         // After restore from backup, consume the restore flag on fresh launch so it can't

@@ -46,6 +46,36 @@ class SupabaseClient @Inject constructor(
         settings.podhopperEmail.set(email, updateModifiedAt = false)
     }
 
+    /**
+     * Creates a new account. When the project does not require email confirmation, Supabase returns
+     * a session immediately: that session is applied and persisted exactly like [login], and this
+     * returns true. When confirmation is required, no token comes back and this returns false, which
+     * the caller surfaces as "check your email to confirm".
+     */
+    @Synchronized
+    fun signUp(email: String, password: String): Boolean {
+        val body = JSONObject()
+        body.put("email", email)
+        body.put("password", password)
+        val json = authCall("/auth/v1/signup", body)
+        if (json.has("access_token")) {
+            applySession(json)
+            settings.podhopperRefreshToken.set(json.optString("refresh_token", ""), updateModifiedAt = false)
+            settings.podhopperEmail.set(email, updateModifiedAt = false)
+            return true
+        }
+        return false
+    }
+
+    /**
+     * Asks Supabase to send a password reset email. Succeeds quietly; failures throw.
+     */
+    fun recoverPassword(email: String) {
+        val body = JSONObject()
+        body.put("email", email)
+        authCall("/auth/v1/recover", body)
+    }
+
     @Synchronized
     fun ensureSession(): String {
         val cached = cachedAccessToken

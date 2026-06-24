@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- PodHopper first-run onboarding: welcome -->
+    <string name="podhopper_welcome_title">Welcome to PodHopper!</string>
+    <string name="podhopper_welcome_message">For the best experience, please log in or create your account.</string>
+    <string name="podhopper_welcome_login">Log in / Sign up</string>
+    <string name="podhopper_welcome_skip">Skip</string>
+
+    <!-- Skip-without-account warning -->
+    <string name="podhopper_skip_warning">You are welcome to use PodHopper without an account, however, syncing between devices will not work.</string>
+    <string name="podhopper_skip_continue">Continue without account</string>
+    <string name="podhopper_skip_back">Back to login</string>
+
+    <!-- Login / auth -->
+    <string name="podhopper_auth_explanation">Sign in with your PodHopper account. Use the same account on every device to keep them in sync.</string>
+    <string name="podhopper_auth_login">Log in</string>
+    <string name="podhopper_auth_signup">Create account</string>
+    <string name="podhopper_auth_forgot">Forgot password?</string>
+    <string name="podhopper_auth_error">Something went wrong</string>
+    <string name="podhopper_auth_invalid_credentials">Invalid credentials</string>
+    <string name="podhopper_auth_login_error">Login failed</string>
+    <string name="podhopper_auth_recover_sent">Password reset email sent. Check your inbox.</string>
+    <string name="podhopper_auth_recover_error">Could not send reset email</string>
+    <string name="podhopper_auth_confirm_email">Account created. Check your email to confirm, then log in.</string>
+
+    <!-- Signup -->
+    <string name="podhopper_signup_explanation">Create a PodHopper account to sync your podcasts and playback position across your phone and car.</string>
+    <string name="podhopper_signup_confirm_password">Confirm password</string>
+    <string name="podhopper_signup_invalid_email">Enter a valid email address</string>
+    <string name="podhopper_signup_password_too_short">Password must be at least 6 characters</string>
+    <string name="podhopper_signup_passwords_mismatch">Passwords do not match</string>
+    <string name="podhopper_signup_failed">Could not create account</string>
+
+    <!-- Notifications step -->
+    <string name="podhopper_notifications_title">Stay up to date!</string>
+    <string name="podhopper_notifications_message">Notifications are the best way to keep track of new episodes.</string>
+    <string name="podhopper_notifications_checkbox">Receive Notifications</string>
+    <string name="podhopper_get_started">Get Started</string>
+
+</resources>

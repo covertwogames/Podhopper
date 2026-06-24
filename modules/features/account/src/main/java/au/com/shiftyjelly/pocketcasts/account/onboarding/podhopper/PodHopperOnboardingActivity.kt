@@ -52,15 +52,21 @@ class PodHopperOnboardingActivity : AppCompatActivity() {
         theme.setupThemeForConfig(this, resources.configuration)
         enableEdgeToEdge()
 
-        val startSignedIn = viewModel.isSignedIn()
+        val loginOnly = intent.getBooleanExtra(EXTRA_LOGIN_ONLY, false)
+        val startSignedIn = !loginOnly && viewModel.isSignedIn()
 
         setContent {
             AppThemeWithBackground(theme.activeTheme) {
                 PodHopperOnboardingFlow(
                     viewModel = viewModel,
                     startSignedIn = startSignedIn,
-                    onExitApp = { finishAffinity() },
+                    loginOnly = loginOnly,
+                    onExitApp = { if (loginOnly) finish() else finishAffinity() },
                     onGetStarted = { receiveNotifications -> onGetStarted(receiveNotifications) },
+                    onLoginComplete = {
+                        setResult(RESULT_OK)
+                        finish()
+                    },
                 )
             }
         }
@@ -93,8 +99,11 @@ class PodHopperOnboardingActivity : AppCompatActivity() {
     }
 
     companion object {
-        fun newInstance(context: Context): Intent {
+        private const val EXTRA_LOGIN_ONLY = "login_only"
+
+        fun newInstance(context: Context, loginOnly: Boolean = false): Intent {
             return Intent(context, PodHopperOnboardingActivity::class.java)
+                .putExtra(EXTRA_LOGIN_ONLY, loginOnly)
         }
     }
 }

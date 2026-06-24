@@ -44,8 +44,10 @@ class PlaylistsViewModel @Inject constructor(
     private val showFreeAccountBanner = combine(
         settings.isFreeAccountFiltersBannerDismissed.flow,
         userManager.getSignInState().asFlow().map { it.isSignedOut },
-    ) { isBannerDismissed, isSignedOut ->
-        isSignedOut && !isBannerDismissed
+    ) { _, _ ->
+        // PodHopper: never nag to sign into a Pocket Casts account. The PodHopper account lives in
+        // settings and is independent of this Pocket Casts sign-in state.
+        false
     }
 
     internal val uiState = combine(

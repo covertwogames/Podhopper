@@ -60,16 +60,29 @@ fun PodHopperOnboardingFlow(
     startSignedIn: Boolean,
     onExitApp: () -> Unit,
     onGetStarted: (Boolean) -> Unit,
+    loginOnly: Boolean = false,
+    onLoginComplete: () -> Unit = {},
 ) {
     var step by remember {
-        mutableStateOf(if (startSignedIn) OnboardingStep.Notifications else OnboardingStep.Welcome)
+        mutableStateOf(
+            when {
+                loginOnly -> OnboardingStep.Login
+                startSignedIn -> OnboardingStep.Notifications
+                else -> OnboardingStep.Welcome
+            },
+        )
     }
     val authState by viewModel.authState.collectAsState()
 
     LaunchedEffect(authState) {
         if (authState is AuthState.Authenticated) {
-            step = OnboardingStep.Notifications
-            viewModel.resetState()
+            if (loginOnly) {
+                viewModel.resetState()
+                onLoginComplete()
+            } else {
+                step = OnboardingStep.Notifications
+                viewModel.resetState()
+            }
         }
     }
 
@@ -77,8 +90,12 @@ fun PodHopperOnboardingFlow(
         when (step) {
             OnboardingStep.Welcome -> onExitApp()
             OnboardingStep.Login -> {
-                viewModel.resetState()
-                step = OnboardingStep.Welcome
+                if (loginOnly) {
+                    onExitApp()
+                } else {
+                    viewModel.resetState()
+                    step = OnboardingStep.Welcome
+                }
             }
             OnboardingStep.Signup -> {
                 viewModel.resetState()

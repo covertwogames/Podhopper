@@ -8,6 +8,7 @@ import au.com.shiftyjelly.pocketcasts.models.type.SignInState
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.repositories.endofyear.EndOfYearManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.SupabaseClient
 import au.com.shiftyjelly.pocketcasts.repositories.user.StatsManager
 import au.com.shiftyjelly.pocketcasts.repositories.user.UserManager
 import au.com.shiftyjelly.pocketcasts.utils.Gravatar
@@ -54,6 +55,7 @@ class ProfileViewModel @Inject constructor(
     private val userManager: UserManager,
     private val endOfYearManager: EndOfYearManager,
     private val eventHorizon: EventHorizon,
+    private val supabaseClient: SupabaseClient,
 ) : ViewModel() {
     private val refreshStatsTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -118,6 +120,20 @@ class ProfileViewModel @Inject constructor(
         ),
     )
 
+    internal val podHopperAccountState = combine(
+        settings.podhopperRefreshToken.flow,
+        settings.podhopperEmail.flow,
+    ) { refreshToken, email ->
+        PodHopperAccountState(
+            isSignedIn = refreshToken.isNotEmpty(),
+            email = email.ifEmpty { null },
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = PodHopperAccountState(isSignedIn = false, email = null),
+    )
+
     internal val isPlaybackAvailable = flow {
         while (true) {
             emit(endOfYearManager.isEligibleForEndOfYear())
@@ -165,6 +181,10 @@ class ProfileViewModel @Inject constructor(
 
     internal fun onHeaderClick() {
         eventHorizon.track(ProfileAccountButtonTappedEvent)
+    }
+
+    internal fun logoutPodHopper() {
+        supabaseClient.logout()
     }
 
     internal fun onShareClick() {

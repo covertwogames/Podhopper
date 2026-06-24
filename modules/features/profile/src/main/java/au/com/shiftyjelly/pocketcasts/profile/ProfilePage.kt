@@ -70,8 +70,8 @@ internal fun ProfilePage(
     onReferralsTooltipClick: () -> Unit,
     onReferralsTooltipShow: () -> Unit,
     onSettingsClick: () -> Unit,
-    onHeaderClick: () -> Unit,
-    onShareClick: () -> Unit,
+    onLoginClick: () -> Unit,
+    onLogoutClick: () -> Unit,
     onCreateFreeAccountBannerClick: () -> Unit,
     onDismissCreateFreeAccountBannerClick: () -> Unit,
     onEndOfYearCardShow: () -> Unit,
@@ -109,10 +109,10 @@ internal fun ProfilePage(
                     VerticalSpacer()
                 }
                 headerWithStats(
-                    headerState = state.headerState,
+                    podHopperAccount = state.podHopperAccount,
                     statsState = state.statsState,
-                    onHeaderClick = onHeaderClick,
-                    onShareClick = onShareClick,
+                    onLoginClick = onLoginClick,
+                    onLogoutClick = onLogoutClick,
                     isPortrait = isPortrait,
                 )
                 item {
@@ -223,7 +223,7 @@ internal data class ProfilePageState(
     val isFreeAccountBannerVisible: Boolean,
     val isUpgradeBannerVisible: Boolean,
     val miniPlayerPadding: Dp,
-    val headerState: ProfileHeaderState,
+    val podHopperAccount: PodHopperAccountState,
     val statsState: ProfileStatsState,
     val referralsState: ReferralsViewModel.UiState,
     val refreshState: RefreshState,
@@ -281,18 +281,18 @@ private fun Toolbar(
 }
 
 private fun LazyListScope.headerWithStats(
-    headerState: ProfileHeaderState,
+    podHopperAccount: PodHopperAccountState,
     statsState: ProfileStatsState,
-    onHeaderClick: () -> Unit,
-    onShareClick: () -> Unit,
+    onLoginClick: () -> Unit,
+    onLogoutClick: () -> Unit,
     isPortrait: Boolean,
 ) {
     if (isPortrait) {
         item {
-            ProfileHeader(
-                state = headerState,
-                onClick = onHeaderClick,
-                onShareClick = onShareClick,
+            PodHopperProfileHeader(
+                account = podHopperAccount,
+                onLoginClick = onLoginClick,
+                onLogoutClick = onLogoutClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = horizontalPadding),
@@ -320,10 +320,10 @@ private fun LazyListScope.headerWithStats(
                     .fillMaxWidth()
                     .padding(horizontal = horizontalPadding),
             ) {
-                ProfileHeader(
-                    state = headerState,
-                    onClick = onHeaderClick,
-                    onShareClick = onShareClick,
+                PodHopperProfileHeader(
+                    account = podHopperAccount,
+                    onLoginClick = onLoginClick,
+                    onLogoutClick = onLogoutClick,
                     modifier = Modifier.weight(1f),
                 )
                 ProfileStats(
@@ -376,12 +376,9 @@ private fun ProfilePageStub(
             isUpgradeBannerVisible = true,
             isFreeAccountBannerVisible = true,
             miniPlayerPadding = 64.dp,
-            headerState = ProfileHeaderState(
-                email = "noreply@pocketcasts.com",
-                imageUrl = null,
-                subscriptionTier = null,
-                expiresIn = null,
-                isShareVisible = true,
+            podHopperAccount = PodHopperAccountState(
+                isSignedIn = true,
+                email = "you@example.com",
             ),
             statsState = ProfileStatsState(
                 podcastsCount = 50,
@@ -405,8 +402,8 @@ private fun ProfilePageStub(
         onReferralsTooltipClick = {},
         onReferralsTooltipShow = {},
         onSettingsClick = {},
-        onHeaderClick = {},
-        onShareClick = {},
+        onLoginClick = {},
+        onLogoutClick = {},
         onCreateFreeAccountBannerClick = {},
         onDismissCreateFreeAccountBannerClick = {},
         onEndOfYearCardShow = {},

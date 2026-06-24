@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
+import au.com.shiftyjelly.pocketcasts.account.onboarding.podhopper.PodHopperOnboardingActivity
 import au.com.shiftyjelly.pocketcasts.analytics.SourceView
 import au.com.shiftyjelly.pocketcasts.compose.CallOnce
 import au.com.shiftyjelly.pocketcasts.compose.extensions.contentWithoutConsumedInsets
@@ -62,7 +63,7 @@ class ProfileFragment :
             isFreeAccountBannerVisible = profileViewModel.isFreeAccountBannerVisible.collectAsState().value,
             isUpgradeBannerVisible = profileViewModel.showUpgradeBanner.collectAsState(false).value,
             miniPlayerPadding = profileViewModel.miniPlayerInset.collectAsState().value.pxToDp(requireContext()).dp,
-            headerState = profileViewModel.profileHeaderState.collectAsState().value,
+            podHopperAccount = profileViewModel.podHopperAccountState.collectAsState().value,
             statsState = profileViewModel.profileStatsState.collectAsState().value,
             referralsState = referralsViewModel.state.collectAsState().value,
             refreshState = profileViewModel.refreshState.collectAsState().value,
@@ -96,16 +97,11 @@ class ProfileFragment :
                 profileViewModel.onSettingsClick()
                 fragmentHostListener.addFragment(SettingsFragment())
             },
-            onHeaderClick = {
-                profileViewModel.onHeaderClick()
-                if (profileViewModel.isSignedIn) {
-                    fragmentHostListener.addFragment(AccountDetailsFragment.newInstance())
-                } else {
-                    OnboardingLauncher.openOnboardingFlow(requireActivity(), OnboardingFlow.LoggedOut)
-                }
+            onLoginClick = {
+                startActivity(PodHopperOnboardingActivity.newInstance(requireContext(), loginOnly = true))
             },
-            onShareClick = {
-                profileViewModel.onShareClick()
+            onLogoutClick = {
+                profileViewModel.logoutPodHopper()
             },
             onCreateFreeAccountBannerClick = {
                 profileViewModel.onCreateFreeAccountClick()

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- PodHopper account UI on the Profile tab -->
+    <string name="podhopper_profile_login">Login / Create Account</string>
+    <string name="podhopper_profile_logged_in_as">Logged in as</string>
+    <string name="podhopper_profile_logout">Logout</string>
+
+    <!-- Logout confirmation dialog -->
+    <string name="podhopper_logout_confirm_message">Are you sure you want to logout of your PodHopper account?</string>
+    <string name="podhopper_logout_confirm_yes">Yes</string>
+    <string name="podhopper_logout_confirm_no">No</string>
+
+</resources>

@@ -21,6 +21,9 @@ class AppIcon @Inject constructor(
     private val settings: Settings,
 ) {
 
+    // All PodHopper icons are free. The analyticsValue reuses existing EventHorizon
+    // enum values purely as harmless tracking placeholders, since that enum is generated
+    // and cannot have new values added here.
     enum class AppIconType(
         internal val setting: AppIconSetting,
         @StringRes val labelId: Int,
@@ -32,198 +35,78 @@ class AppIcon @Inject constructor(
     ) {
         DEFAULT(
             setting = AppIconSetting.DEFAULT,
-            labelId = LR.string.settings_app_icon_default,
-            settingsIcon = IR.drawable.ic_appicon0,
+            labelId = LR.string.podhopper_app_icon_green,
+            settingsIcon = IR.drawable.ic_appicon_ph_green,
             tier = null,
             launcherIcon = IR.mipmap.ic_launcher,
             aliasName = ".ui.MainActivity_0",
             analyticsValue = EventHorizonAppIconType.Default,
         ),
-        DARK(
-            setting = AppIconSetting.DARK,
-            labelId = LR.string.settings_app_icon_dark,
-            settingsIcon = IR.drawable.ic_appicon1,
+        MIDNIGHT(
+            setting = AppIconSetting.MIDNIGHT,
+            labelId = LR.string.podhopper_app_icon_midnight,
+            settingsIcon = IR.drawable.ic_appicon_ph_midnight,
             tier = null,
-            launcherIcon = IR.mipmap.ic_launcher_1,
+            launcherIcon = IR.mipmap.ic_launcher_midnight,
             aliasName = ".ui.MainActivity_1",
             analyticsValue = EventHorizonAppIconType.Dark,
         ),
-        ROUND_LIGHT(
-            setting = AppIconSetting.ROUND_LIGHT,
-            labelId = LR.string.settings_app_icon_round_light,
-            settingsIcon = IR.drawable.ic_appicon2,
+        LIGHT(
+            setting = AppIconSetting.LIGHT,
+            labelId = LR.string.podhopper_app_icon_light,
+            settingsIcon = IR.drawable.ic_appicon_ph_light,
             tier = null,
-            launcherIcon = IR.mipmap.ic_launcher_2,
+            launcherIcon = IR.mipmap.ic_launcher_light,
             aliasName = ".ui.MainActivity_2",
             analyticsValue = EventHorizonAppIconType.RoundLight,
         ),
-        ROUND_DARK(
-            setting = AppIconSetting.ROUND_DARK,
-            labelId = LR.string.settings_app_icon_round_dark,
-            settingsIcon = IR.drawable.ic_appicon3,
+        INK(
+            setting = AppIconSetting.INK,
+            labelId = LR.string.podhopper_app_icon_ink,
+            settingsIcon = IR.drawable.ic_appicon_ph_ink,
             tier = null,
-            launcherIcon = IR.mipmap.ic_launcher_3,
+            launcherIcon = IR.mipmap.ic_launcher_ink,
             aliasName = ".ui.MainActivity_3",
             analyticsValue = EventHorizonAppIconType.RoundDark,
         ),
-        INDIGO(
-            setting = AppIconSetting.INDIGO,
-            labelId = LR.string.settings_app_icon_indigo,
-            settingsIcon = IR.drawable.ic_appicon_indigo,
+        SLATE(
+            setting = AppIconSetting.SLATE,
+            labelId = LR.string.podhopper_app_icon_slate,
+            settingsIcon = IR.drawable.ic_appicon_ph_slate,
             tier = null,
-            launcherIcon = IR.mipmap.ic_launcher_indigo,
-            aliasName = ".ui.MainActivity_9",
+            launcherIcon = IR.mipmap.ic_launcher_slate,
+            aliasName = ".ui.MainActivity_4",
             analyticsValue = EventHorizonAppIconType.Indigo,
         ),
-        ROSE(
-            setting = AppIconSetting.ROSE,
-            labelId = LR.string.settings_app_icon_rose,
-            settingsIcon = IR.drawable.appicon_rose,
+        COSMIC(
+            setting = AppIconSetting.COSMIC,
+            labelId = LR.string.podhopper_app_icon_cosmic,
+            settingsIcon = IR.drawable.ic_appicon_ph_cosmic,
             tier = null,
-            launcherIcon = IR.mipmap.ic_launcher_rose,
-            aliasName = ".ui.MainActivity_12",
+            launcherIcon = IR.mipmap.ic_launcher_cosmic,
+            aliasName = ".ui.MainActivity_5",
             analyticsValue = EventHorizonAppIconType.Rose,
         ),
-        CAT(
-            setting = AppIconSetting.CAT,
-            labelId = LR.string.settings_app_icon_pocket_cats,
-            settingsIcon = IR.drawable.ic_appicon_pocket_cats,
+        COSMIC_NOIR(
+            setting = AppIconSetting.COSMIC_NOIR,
+            labelId = LR.string.podhopper_app_icon_cosmic_noir,
+            settingsIcon = IR.drawable.ic_appicon_ph_cosmic_noir,
             tier = null,
-            launcherIcon = IR.mipmap.ic_launcher_cat,
-            aliasName = ".ui.MainActivity_10",
-            analyticsValue = EventHorizonAppIconType.PocketCats,
-        ),
-        REDVELVET(
-            setting = AppIconSetting.REDVELVET,
-            labelId = LR.string.settings_app_icon_red_velvet,
-            settingsIcon = IR.drawable.appicon_red_velvet,
-            tier = null,
-            launcherIcon = IR.mipmap.ic_launcher_redvelvet,
-            aliasName = ".ui.MainActivity_11",
-            analyticsValue = EventHorizonAppIconType.RedVelvet,
-        ),
-        PRIDE(
-            setting = AppIconSetting.PRIDE,
-            labelId = LR.string.settings_app_icon_pride,
-            settingsIcon = IR.drawable.appicon_pride,
-            tier = null,
-            launcherIcon = IR.mipmap.ic_launcher_pride,
-            aliasName = ".ui.MainActivity_18",
-            analyticsValue = EventHorizonAppIconType.Pride2023,
-        ),
-        PLUS(
-            setting = AppIconSetting.PLUS,
-            labelId = LR.string.settings_app_icon_plus,
-            settingsIcon = IR.drawable.ic_appicon4,
-            tier = SubscriptionTier.Plus,
-            launcherIcon = IR.mipmap.ic_launcher_4,
-            aliasName = ".ui.MainActivity_4",
-            analyticsValue = EventHorizonAppIconType.Plus,
-        ),
-        CLASSIC(
-            setting = AppIconSetting.CLASSIC,
-            labelId = LR.string.settings_app_icon_classic,
-            settingsIcon = IR.drawable.ic_appicon5,
-            tier = SubscriptionTier.Plus,
-            launcherIcon = IR.mipmap.ic_launcher_5,
-            aliasName = ".ui.MainActivity_5",
-            analyticsValue = EventHorizonAppIconType.Classic,
-        ),
-        ELECTRIC_BLUE(
-            setting = AppIconSetting.ELECTRIC_BLUE,
-            labelId = LR.string.settings_app_icon_electric_blue,
-            settingsIcon = IR.drawable.ic_appicon6,
-            tier = SubscriptionTier.Plus,
-            launcherIcon = IR.mipmap.ic_launcher_6,
+            launcherIcon = IR.mipmap.ic_launcher_cosmic_noir,
             aliasName = ".ui.MainActivity_6",
-            analyticsValue = EventHorizonAppIconType.ElectricBlue,
-        ),
-        ELECTRIC_PINK(
-            setting = AppIconSetting.ELECTRIC_PINK,
-            labelId = LR.string.settings_app_icon_electric_pink,
-            settingsIcon = IR.drawable.ic_appicon7,
-            tier = SubscriptionTier.Plus,
-            launcherIcon = IR.mipmap.ic_launcher_7,
-            aliasName = ".ui.MainActivity_7",
-            analyticsValue = EventHorizonAppIconType.ElectricPink,
-        ),
-        RADIOACTIVE(
-            setting = AppIconSetting.RADIOACTIVE,
-            labelId = LR.string.settings_app_icon_radioactivity,
-            settingsIcon = IR.drawable.appicon_radioactive,
-            tier = SubscriptionTier.Plus,
-            launcherIcon = IR.mipmap.ic_launcher_radioactive,
-            aliasName = ".ui.MainActivity_8",
-            analyticsValue = EventHorizonAppIconType.Radioactive,
-        ),
-        HALLOWEEN(
-            setting = AppIconSetting.HALLOWEEN,
-            labelId = LR.string.settings_app_icon_halloween,
-            settingsIcon = IR.drawable.appicon_halloween,
-            tier = SubscriptionTier.Plus,
-            launcherIcon = IR.mipmap.ic_launcher_halloween,
-            aliasName = ".ui.MainActivity_13",
-            analyticsValue = EventHorizonAppIconType.Halloween,
-        ),
-        PATRON_CHROME(
-            setting = AppIconSetting.PATRON_CHROME,
-            labelId = LR.string.settings_app_icon_patron_chrome,
-            settingsIcon = IR.drawable.appicon_patron_chrome,
-            tier = SubscriptionTier.Patron,
-            launcherIcon = IR.mipmap.ic_launcher_patron_chrome,
-            aliasName = ".ui.MainActivity_14",
-            analyticsValue = EventHorizonAppIconType.PatronChrome,
-        ),
-        PATRON_ROUND(
-            setting = AppIconSetting.PATRON_ROUND,
-            labelId = LR.string.settings_app_icon_patron_round,
-            settingsIcon = IR.drawable.appicon_patron_round,
-            tier = SubscriptionTier.Patron,
-            launcherIcon = IR.mipmap.ic_launcher_patron_round,
-            aliasName = ".ui.MainActivity_15",
-            analyticsValue = EventHorizonAppIconType.PatronRound,
-        ),
-        PATRON_GLOW(
-            setting = AppIconSetting.PATRON_GLOW,
-            labelId = LR.string.settings_app_icon_patron_glow,
-            settingsIcon = IR.drawable.appicon_patron_glow,
-            tier = SubscriptionTier.Patron,
-            launcherIcon = IR.mipmap.ic_launcher_patron_glow,
-            aliasName = ".ui.MainActivity_16",
-            analyticsValue = EventHorizonAppIconType.PatronGlow,
-        ),
-        PATRON_DARK(
-            setting = AppIconSetting.PATRON_DARK,
-            labelId = LR.string.settings_app_icon_patron_dark,
-            settingsIcon = IR.drawable.appicon_patron_dark,
-            tier = SubscriptionTier.Patron,
-            launcherIcon = IR.mipmap.ic_launcher_patron_dark,
-            aliasName = ".ui.MainActivity_17",
-            analyticsValue = EventHorizonAppIconType.PatronDark,
+            analyticsValue = EventHorizonAppIconType.PocketCats,
         ),
         ;
 
         companion object {
             fun fromSetting(setting: AppIconSetting) = when (setting) {
                 AppIconSetting.DEFAULT -> DEFAULT
-                AppIconSetting.DARK -> DARK
-                AppIconSetting.ROUND_LIGHT -> ROUND_LIGHT
-                AppIconSetting.ROUND_DARK -> ROUND_DARK
-                AppIconSetting.INDIGO -> INDIGO
-                AppIconSetting.ROSE -> ROSE
-                AppIconSetting.CAT -> CAT
-                AppIconSetting.REDVELVET -> REDVELVET
-                AppIconSetting.PRIDE -> PRIDE
-                AppIconSetting.PLUS -> PLUS
-                AppIconSetting.CLASSIC -> CLASSIC
-                AppIconSetting.ELECTRIC_BLUE -> ELECTRIC_BLUE
-                AppIconSetting.ELECTRIC_PINK -> ELECTRIC_PINK
-                AppIconSetting.RADIOACTIVE -> RADIOACTIVE
-                AppIconSetting.HALLOWEEN -> HALLOWEEN
-                AppIconSetting.PATRON_CHROME -> PATRON_CHROME
-                AppIconSetting.PATRON_ROUND -> PATRON_ROUND
-                AppIconSetting.PATRON_GLOW -> PATRON_GLOW
-                AppIconSetting.PATRON_DARK -> PATRON_DARK
+                AppIconSetting.MIDNIGHT -> MIDNIGHT
+                AppIconSetting.LIGHT -> LIGHT
+                AppIconSetting.INK -> INK
+                AppIconSetting.SLATE -> SLATE
+                AppIconSetting.COSMIC -> COSMIC
+                AppIconSetting.COSMIC_NOIR -> COSMIC_NOIR
             }
         }
     }
@@ -240,8 +123,9 @@ class AppIcon @Inject constructor(
         val classPath = "au.com.shiftyjelly.pocketcasts"
         AppIconType.entries.forEach { iconType ->
             val componentName = ComponentName(context.packageName, "$classPath${iconType.aliasName}")
-            // If we are using the default icon we just switch every alias off
-            val enabledFlag = if (selectedIconType == iconType && selectedIconType != AppIconType.DEFAULT) {
+            // Exactly one alias is ever enabled, including the default, so the launcher
+            // shows a single icon that swaps in place instead of leaving a duplicate.
+            val enabledFlag = if (selectedIconType == iconType) {
                 PackageManager.COMPONENT_ENABLED_STATE_ENABLED
             } else {
                 PackageManager.COMPONENT_ENABLED_STATE_DISABLED

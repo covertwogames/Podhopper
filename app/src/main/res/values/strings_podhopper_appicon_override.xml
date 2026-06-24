@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Overrides the Pocket Casts app icon dialog message. The original text warned that
+  a second duplicate icon would appear in the app drawer, which was a side effect of
+  the old icon switching. PodHopper now swaps a single icon in place, so that message
+  no longer applies.
+-->
+<resources>
+    <string name="settings_app_icon_updated_message">Your new icon may take a few minutes to appear. On some home screens it may show up in a new spot.</string>
+</resources>

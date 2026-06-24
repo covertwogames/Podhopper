@@ -39,7 +39,7 @@ android {
         }
 
         named("debugProd") {
-            manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher_3"
+            manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher"
         }
 
         maybeCreate("prototype").apply {

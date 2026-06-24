@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="podhopper_app_icon_green">Green</string>
+    <string name="podhopper_app_icon_midnight">Midnight</string>
+    <string name="podhopper_app_icon_light">Light</string>
+    <string name="podhopper_app_icon_ink">Ink</string>
+    <string name="podhopper_app_icon_slate">Slate</string>
+    <string name="podhopper_app_icon_cosmic">Cosmic</string>
+    <string name="podhopper_app_icon_cosmic_noir">Cosmic Noir</string>
+</resources>

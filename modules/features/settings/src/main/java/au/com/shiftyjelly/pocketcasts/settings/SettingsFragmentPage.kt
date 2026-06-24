@@ -82,7 +82,6 @@ fun SettingsFragmentPage(
             }
             item {
                 AppearanceRow(
-                    isSignedInAsPlusOrPatron = signInState.isSignedInAsPlusOrPatron,
                     onClick = { openFragment(AppearanceSettingsFragment.newInstance()) },
                 )
             }
@@ -178,11 +177,10 @@ private fun NotificationRow(onClick: () -> Unit) {
 }
 
 @Composable
-private fun AppearanceRow(isSignedInAsPlusOrPatron: Boolean, onClick: () -> Unit) {
+private fun AppearanceRow(onClick: () -> Unit) {
     SettingRow(
         primaryText = stringResource(LR.string.settings_title_appearance),
         icon = painterResource(SR.drawable.settings_appearance),
-        primaryTextEndDrawable = if (isSignedInAsPlusOrPatron) null else IR.drawable.ic_plus,
         modifier = Modifier.rowModifier(onClick),
     )
 }

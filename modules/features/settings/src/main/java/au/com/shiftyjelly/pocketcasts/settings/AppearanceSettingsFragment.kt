@@ -171,7 +171,7 @@ class AppearanceSettingsFragment : BaseFragment() {
 
             (binding.themeRecyclerView.adapter as? AppearanceThemeSettingsAdapter)?.updatePlusSignedIn(signInState.isSignedInAsPlusOrPatron)
             (binding.appIconRecyclerView.adapter as? AppearanceIconSettingsAdapter)?.updatePlusSignedIn(signInState)
-            binding.upgradeGroup.isVisible = !signInState.isSignedInAsPlusOrPatron && !settings.getUpgradeClosedAppearSettings()
+            binding.upgradeGroup.isVisible = false
         }
 
         viewModel.loadThemesAndIcons()

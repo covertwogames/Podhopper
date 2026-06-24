@@ -4,18 +4,29 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.core.view.updatePadding
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import au.com.shiftyjelly.pocketcasts.compose.AppThemeWithBackground
 import au.com.shiftyjelly.pocketcasts.compose.bars.ThemedTopAppBar
+import au.com.shiftyjelly.pocketcasts.compose.components.HorizontalDivider
 import au.com.shiftyjelly.pocketcasts.compose.extensions.contentWithoutConsumedInsets
 import au.com.shiftyjelly.pocketcasts.compose.theme
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
@@ -71,13 +82,16 @@ class LicensesFragment : BaseFragment() {
     private fun LicensesPage(
         onBackPress: () -> Unit,
     ) {
-        Column {
+        Column(modifier = Modifier.fillMaxSize()) {
             ThemedTopAppBar(
                 title = stringResource(LR.string.settings_about_acknowledgements),
                 onNavigationClick = onBackPress,
             )
+            OpenSourceAttribution()
             LibrariesContainer(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
                 showAuthor = true,
                 showVersion = false,
                 showLicenseBadges = true,
@@ -523,3 +537,48 @@ private val appReviewEmojisLibrary: Library = Library(
     developers = emptyList(),
     scm = null,
 )
+
+@Composable
+private fun OpenSourceAttribution() {
+    val uriHandler = LocalUriHandler.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.podhopper_opensource_heading),
+            style = MaterialTheme.typography.subtitle1,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.theme.colors.primaryText01,
+        )
+        Text(
+            text = stringResource(R.string.podhopper_opensource_credit),
+            style = MaterialTheme.typography.body2,
+            color = MaterialTheme.theme.colors.primaryText02,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        Row(modifier = Modifier.padding(top = 10.dp)) {
+            Text(
+                text = stringResource(R.string.podhopper_opensource_source_link),
+                style = MaterialTheme.typography.body2,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.theme.colors.primaryInteractive01,
+                modifier = Modifier.clickable {
+                    uriHandler.openUri("https://github.com/covertwogames/PodHopper")
+                },
+            )
+            Spacer(modifier = Modifier.width(24.dp))
+            Text(
+                text = stringResource(R.string.podhopper_opensource_license_link),
+                style = MaterialTheme.typography.body2,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.theme.colors.primaryInteractive01,
+                modifier = Modifier.clickable {
+                    uriHandler.openUri("https://www.mozilla.org/en-US/MPL/2.0/")
+                },
+            )
+        }
+    }
+    HorizontalDivider()
+}

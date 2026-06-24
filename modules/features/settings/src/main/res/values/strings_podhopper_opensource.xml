@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="podhopper_opensource_heading" translatable="false">Built on open source</string>
+    <string name="podhopper_opensource_credit" translatable="false">PodHopper is based on Pocket Casts by Automattic, used under the Mozilla Public License 2.0.</string>
+    <string name="podhopper_opensource_source_link" translatable="false">View source</string>
+    <string name="podhopper_opensource_license_link" translatable="false">Read the license</string>
+
+</resources>

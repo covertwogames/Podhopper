@@ -643,6 +643,11 @@ class MainActivity :
         navigator.infoStream()
             .doOnNext {
                 updateSystemColors()
+
+                // PodHopper: check for subscription changes from other devices whenever the user
+                // navigates. Throttled in the sync class so rapid navigation does not spam requests.
+                podHopperSubscriptionSync.pollSubscriptions()
+
                 if (it is NavigatorAction.TabSwitched) {
                     val currentTab = navigator.currentTab()
                     if (settings.selectedTab() != currentTab) {
@@ -727,6 +732,10 @@ class MainActivity :
         // here even though we did not subscribe to anything locally to trigger it.
         podHopperSubscriptionSync.pullSubscriptions()
 
+        // PodHopper: while the app is in the foreground, poll every 30s so an already open device
+        // notices subscription changes from other devices without needing to be reopened.
+        podHopperSubscriptionSync.startPeriodicSync()
+
         if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
             if (!videoPlayerShown && playbackManager.getCurrentEpisode()?.isVideo == true && playbackManager.isPlaybackLocal() && playbackManager.isPlaying() && viewModel.isPlayerOpen) {
                 openFullscreenViewPlayer()
@@ -741,6 +750,10 @@ class MainActivity :
 
     override fun onStop() {
         super.onStop()
+
+        // PodHopper: stop the foreground subscription poll loop while backgrounded.
+        podHopperSubscriptionSync.stopPeriodicSync()
+
         // Remove the callback flag CALLBACK_FLAG_REQUEST_DISCOVERY on stop by calling
         // addCallback() again in order to tell the media router that it no longer
         // needs to invest effort trying to discover routes of these kinds for now.

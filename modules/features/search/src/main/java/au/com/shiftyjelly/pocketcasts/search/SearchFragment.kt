@@ -55,6 +55,8 @@ import com.automattic.eventhorizon.EventHorizon
 import com.automattic.eventhorizon.SearchClearedEvent
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.mapNotNull
@@ -86,6 +88,9 @@ class SearchFragment : BaseFragment() {
     }
 
     companion object {
+        private const val SEARCH_DEBOUNCE_MS = 300L
+        private const val SEARCH_MIN_CHARS = 2
+
         fun newInstance(
             floating: Boolean = false,
             onlySearchRemote: Boolean = false,
@@ -106,6 +111,7 @@ class SearchFragment : BaseFragment() {
     private val searchHistoryViewModel: SearchHistoryViewModel by viewModels()
     private var listener: Listener? = null
     private var binding: FragmentSearchBinding? = null
+    private var searchDebounceJob: Job? = null
 
     val floating: Boolean
         get() = arguments?.getBoolean(ARG_FLOATING) ?: false
@@ -208,6 +214,7 @@ class SearchFragment : BaseFragment() {
             setHintTextColor(context.getThemeColor(hintColor))
             setOnEditorActionListener { _, actionId, event ->
                 if (searchView.query.toString().isNotBlank() && (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE || (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_ENTER))) {
+                    searchDebounceJob?.cancel()
                     viewModel.runSearchOnTerm(searchView.query.toString())
                     binding.searchHistoryPanel.hide()
                     UiUtil.hideKeyboard(searchView)
@@ -259,6 +266,7 @@ class SearchFragment : BaseFragment() {
 
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String): Boolean {
+                searchDebounceJob?.cancel()
                 viewModel.updateSearchQuery(query, immediate = true)
                 binding.searchHistoryPanel.hide()
                 UiUtil.hideKeyboard(searchView)
@@ -272,11 +280,21 @@ class SearchFragment : BaseFragment() {
                 if ((characterCount == 1 && lowerCaseSearch.startsWith("h")) || (characterCount == 2 && lowerCaseSearch.startsWith("ht")) || (characterCount == 3 && lowerCaseSearch.startsWith("htt")) || lowerCaseSearch.startsWith("http")) {
                     return true
                 }
-                viewModel.updateSearchQuery(query)
-                if (characterCount > 0) {
-                    binding.searchHistoryPanel.hide()
-                } else {
+
+                // PodHopper: live search as you type. Debounce so we only query iTunes after a brief
+                // pause, and not until at least SEARCH_MIN_CHARS characters have been entered.
+                searchDebounceJob?.cancel()
+                if (characterCount == 0) {
+                    viewModel.updateSearchQuery(query)
                     binding.searchHistoryPanel.show()
+                } else {
+                    binding.searchHistoryPanel.hide()
+                    if (characterCount >= SEARCH_MIN_CHARS) {
+                        searchDebounceJob = lifecycleScope.launch {
+                            delay(SEARCH_DEBOUNCE_MS)
+                            viewModel.updateSearchQuery(query)
+                        }
+                    }
                 }
                 return true
             }

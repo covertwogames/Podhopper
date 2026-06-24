@@ -119,14 +119,21 @@ class SearchViewModel @Inject constructor(
             return
         }
 
-        if (FeatureFlag.isEnabled(Feature.IMPROVED_SEARCH_SUGGESTIONS)) {
-            searchHandler.updateAutCompleteQuery(query)
-            _state.update {
-                if (it is SearchUiState.Results && it.searchTerm.orEmpty().length > query.length) {
-                    SearchUiState.Suggestions(operation = SearchUiState.SearchOperation.Success(searchTerm = query, results = emptyList()))
-                } else {
-                    it
+        // PodHopper: search live as the user types. Non-empty queries go straight to the real
+        // search (debounced in the fragment). An empty query keeps the original behavior so the
+        // search history and suggestions still appear when the box is cleared.
+        if (query.isBlank()) {
+            if (FeatureFlag.isEnabled(Feature.IMPROVED_SEARCH_SUGGESTIONS)) {
+                searchHandler.updateAutCompleteQuery(query)
+                _state.update {
+                    if (it is SearchUiState.Results && it.searchTerm.orEmpty().length > query.length) {
+                        SearchUiState.Suggestions(operation = SearchUiState.SearchOperation.Success(searchTerm = query, results = emptyList()))
+                    } else {
+                        it
+                    }
                 }
+            } else {
+                searchHandler.updateSearchQuery(query, immediate)
             }
         } else {
             searchHandler.updateSearchQuery(query, immediate)

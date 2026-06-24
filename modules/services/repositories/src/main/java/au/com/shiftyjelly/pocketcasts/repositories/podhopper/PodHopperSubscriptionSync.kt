@@ -15,6 +15,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -49,6 +52,15 @@ class PodHopperSubscriptionSync @Inject constructor(
     // cursor plus removing downloaded changes from the upload set below.
     @Volatile
     private var applyingRemote = false
+
+    // Throttle clock shared by every pull path. Frequent triggers (navigation, the foreground
+    // timer) skip if a pull already ran within the throttle window.
+    @Volatile
+    private var lastPollMs = 0L
+
+    // The foreground poll loop, started in onStart and stopped in onStop.
+    @Volatile
+    private var periodicJob: Job? = null
 
     init {
         observeSubscriptionChanges()
@@ -118,6 +130,7 @@ class PodHopperSubscriptionSync @Inject constructor(
         if (!supabaseClient.isLoggedIn()) {
             return
         }
+        lastPollMs = System.currentTimeMillis()
         applicationScope.launch(Dispatchers.IO) {
             try {
                 runSync()
@@ -125,6 +138,41 @@ class PodHopperSubscriptionSync @Inject constructor(
                 LogBuffer.i(LogBuffer.TAG_BACKGROUND_TASKS, "SUBSYNC sync FAILED: ${e.message}")
             }
         }
+    }
+
+    /**
+     * Throttled pull for frequent triggers like navigation and the foreground timer. Skips if a
+     * pull already ran within the throttle window, so rapid navigation does not fire a burst of
+     * redundant requests. Picks up both new subscribes and unsubscribes, same as any pull.
+     */
+    fun pollSubscriptions() {
+        if (System.currentTimeMillis() - lastPollMs < MIN_POLL_INTERVAL_MS) {
+            return
+        }
+        pullSubscriptions()
+    }
+
+    /**
+     * Starts a foreground poll loop so an already open device notices changes from other devices
+     * without being reopened. Call from onStart. Safe to call repeatedly; a second call while a
+     * loop is already running is ignored.
+     */
+    fun startPeriodicSync() {
+        if (periodicJob?.isActive == true) {
+            return
+        }
+        periodicJob = applicationScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                delay(PERIODIC_SYNC_INTERVAL_MS)
+                pollSubscriptions()
+            }
+        }
+    }
+
+    /** Stops the foreground poll loop. Call from onStop. */
+    fun stopPeriodicSync() {
+        periodicJob?.cancel()
+        periodicJob = null
     }
 
     private suspend fun runSync() {
@@ -298,6 +346,8 @@ class PodHopperSubscriptionSync @Inject constructor(
     }
 
     companion object {
+        private const val PERIODIC_SYNC_INTERVAL_MS = 30_000L
+        private const val MIN_POLL_INTERVAL_MS = 1_000L
         private const val TABLE_SUBSCRIPTIONS = "subscriptions"
         private const val PREF_NAME = "podhopper_subscription_sync"
         private const val PREF_LAST_PULL_MS = "last_subs_pull_ms"

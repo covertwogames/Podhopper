@@ -20,7 +20,7 @@
     <string name="podhopper_auth_error">Something went wrong</string>
     <string name="podhopper_auth_invalid_credentials">Invalid credentials</string>
     <string name="podhopper_auth_login_error">Login failed</string>
-    <string name="podhopper_auth_recover_sent">Password reset email sent. Check your inbox.</string>
+    <string name="podhopper_auth_recover_sent">If an account exists for that email, we have sent a password reset link. Check your inbox.</string>
     <string name="podhopper_auth_recover_error">Could not send reset email</string>
     <string name="podhopper_auth_confirm_email">Account created. Check your email to confirm, then log in.</string>
 

@@ -163,7 +163,10 @@ class ProfileViewModel @Inject constructor(
     internal val showUpgradeBanner = combine(
         settings.upgradeProfileClosed.flow,
         signInState.map { it.isSignedInAsPlusOrPatron },
-    ) { closedClicked, isPlusOrPatron -> !closedClicked && !isPlusOrPatron }
+    ) { _, _ ->
+        // PodHopper: no Pocket Casts Plus upsell on the profile page.
+        false
+    }
 
     internal val miniPlayerInset = settings.bottomInset.stateIn(
         scope = viewModelScope,

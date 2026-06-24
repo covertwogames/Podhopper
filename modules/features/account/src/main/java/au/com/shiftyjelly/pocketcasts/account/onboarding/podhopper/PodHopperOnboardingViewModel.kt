@@ -1,5 +1,6 @@
 package au.com.shiftyjelly.pocketcasts.account.onboarding.podhopper
 
+import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import au.com.shiftyjelly.pocketcasts.repositories.podhopper.AuthRejectedException
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 /**
  * Drives the PodHopper first-run login, signup, and password-recovery screens. It is a thin
@@ -25,6 +27,7 @@ class PodHopperOnboardingViewModel @Inject constructor(
 
     enum class ErrorKind {
         InvalidCredentials,
+        InvalidEmail,
         LoginFailed,
         SignupFailed,
         RecoverFailed,
@@ -72,7 +75,7 @@ class PodHopperOnboardingViewModel @Inject constructor(
             } catch (e: AuthRejectedException) {
                 _authState.value = AuthState.Error(ErrorKind.InvalidCredentials, null)
             } catch (e: Exception) {
-                _authState.value = AuthState.Error(ErrorKind.LoginFailed, describe(e))
+                _authState.value = AuthState.Error(ErrorKind.LoginFailed, serverMessage(e))
             }
         }
     }
@@ -91,15 +94,15 @@ class PodHopperOnboardingViewModel @Inject constructor(
                 }
                 _authState.value = if (sessionActive) AuthState.Authenticated else AuthState.ConfirmEmail
             } catch (e: Exception) {
-                _authState.value = AuthState.Error(ErrorKind.SignupFailed, describe(e))
+                _authState.value = AuthState.Error(ErrorKind.SignupFailed, serverMessage(e))
             }
         }
     }
 
     fun recoverPassword(email: String) {
         val trimmedEmail = email.trim()
-        if (trimmedEmail.isEmpty()) {
-            _authState.value = AuthState.Error(ErrorKind.MissingFields, null)
+        if (trimmedEmail.isEmpty() || !Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
+            _authState.value = AuthState.Error(ErrorKind.InvalidEmail, null)
             return
         }
         _authState.value = AuthState.Busy
@@ -110,27 +113,40 @@ class PodHopperOnboardingViewModel @Inject constructor(
                 }
                 _authState.value = AuthState.RecoverSent
             } catch (e: Exception) {
-                _authState.value = AuthState.Error(ErrorKind.RecoverFailed, describe(e))
+                _authState.value = AuthState.Error(ErrorKind.RecoverFailed, serverMessage(e))
             }
         }
     }
 
-    private fun describe(e: Throwable): String {
-        val builder = StringBuilder()
+    /**
+     * Pulls the human-readable "msg" that Supabase returns inside its JSON error body, so the UI can
+     * show that one clean sentence instead of the raw exception and HTTP dump. Returns null when no
+     * such message is present (for example a plain network failure), in which case the caller falls
+     * back to a generic message.
+     */
+    private fun serverMessage(e: Throwable): String? {
         var current: Throwable? = e
         var depth = 0
         while (current != null && depth < 4) {
-            if (builder.isNotEmpty()) {
-                builder.append(" <- ")
-            }
-            builder.append(current.javaClass.simpleName)
             val message = current.message
             if (message != null) {
-                builder.append(": ").append(message)
+                val start = message.indexOf('{')
+                val end = message.lastIndexOf('}')
+                if (start != -1 && end > start) {
+                    try {
+                        val parsed = JSONObject(message.substring(start, end + 1))
+                        val msg = parsed.optString("msg")
+                        if (msg.isNotBlank()) {
+                            return msg
+                        }
+                    } catch (_: Exception) {
+                        // Not JSON; keep walking the cause chain.
+                    }
+                }
             }
             current = current.cause
             depth++
         }
-        return builder.toString()
+        return null
     }
 }

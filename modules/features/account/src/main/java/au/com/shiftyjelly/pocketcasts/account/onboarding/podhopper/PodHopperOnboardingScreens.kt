@@ -439,13 +439,15 @@ private fun StatusMessage(authState: AuthState) {
         is AuthState.Error -> {
             val base = when (authState.kind) {
                 ErrorKind.InvalidCredentials -> stringResource(LR.string.podhopper_auth_invalid_credentials)
+                ErrorKind.InvalidEmail -> stringResource(LR.string.podhopper_signup_invalid_email)
                 ErrorKind.LoginFailed -> stringResource(LR.string.podhopper_auth_login_error)
                 ErrorKind.SignupFailed -> stringResource(LR.string.podhopper_signup_failed)
                 ErrorKind.RecoverFailed -> stringResource(LR.string.podhopper_auth_recover_error)
                 ErrorKind.MissingFields -> stringResource(LR.string.podhopper_auth_error)
             }
             val detail = authState.detail
-            val text = if (detail.isNullOrBlank()) base else "$base: $detail"
+            // When the server returned a clean message, show only that. Otherwise show the generic.
+            val text = if (detail.isNullOrBlank()) base else detail
             Spacer(modifier = Modifier.height(12.dp))
             TextP40(text = text, color = errorColor, modifier = Modifier.fillMaxWidth())
         }

@@ -6,6 +6,12 @@ import au.com.shiftyjelly.pocketcasts.servers.RefreshResponse
 import au.com.shiftyjelly.pocketcasts.utils.log.LogBuffer
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /**
  * PodHopper client-side refresh.
@@ -26,20 +32,41 @@ class FeedRefreshManager @Inject constructor(
 
     fun refreshPodcastsLocally(podcasts: List<Podcast>): RefreshResponse {
         val response = RefreshResponse()
-        for (podcast in podcasts) {
-            val feedUrl = podcast.podcastUrl
-            if (feedUrl.isNullOrBlank()) {
-                continue
-            }
-            val parsed = feedParser.parse(feedUrl)
-            if (parsed == null) {
-                LogBuffer.i(LogBuffer.TAG_BACKGROUND_TASKS, "Refresh - skipped ${podcast.uuid}, feed unavailable")
-                continue
-            }
-            if (parsed.episodes.isNotEmpty()) {
-                response.addUpdate(podcast.uuid, parsed.episodes)
+        val semaphore = Semaphore(MAX_CONCURRENT_FEED_REFRESHES)
+        // Parse feeds in parallel with a bounded number running at once, so the network waits overlap
+        // instead of stacking up one podcast at a time. Each result is collected first, then added to
+        // the shared response sequentially below to keep that step single-threaded.
+        val updates = runBlocking {
+            podcasts.map { podcast ->
+                async(Dispatchers.IO) {
+                    semaphore.withPermit {
+                        val feedUrl = podcast.podcastUrl
+                        if (feedUrl.isNullOrBlank()) {
+                            return@withPermit null
+                        }
+                        val parsed = feedParser.parse(feedUrl)
+                        if (parsed == null) {
+                            LogBuffer.i(LogBuffer.TAG_BACKGROUND_TASKS, "Refresh - skipped ${podcast.uuid}, feed unavailable")
+                            return@withPermit null
+                        }
+                        if (parsed.episodes.isEmpty()) {
+                            null
+                        } else {
+                            podcast.uuid to parsed.episodes
+                        }
+                    }
+                }
+            }.awaitAll()
+        }
+        for (update in updates) {
+            if (update != null) {
+                response.addUpdate(update.first, update.second)
             }
         }
         return response
+    }
+
+    companion object {
+        private const val MAX_CONCURRENT_FEED_REFRESHES = 6
     }
 }

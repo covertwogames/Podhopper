@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -28,12 +27,8 @@ import au.com.shiftyjelly.pocketcasts.settings.about.AboutFragment
 import au.com.shiftyjelly.pocketcasts.settings.developer.DeveloperFragment
 import au.com.shiftyjelly.pocketcasts.settings.history.HistoryFragment
 import au.com.shiftyjelly.pocketcasts.settings.notifications.NotificationsSettingsFragment
-import au.com.shiftyjelly.pocketcasts.settings.onboarding.OnboardingFlow
-import au.com.shiftyjelly.pocketcasts.settings.onboarding.OnboardingLauncher
-import au.com.shiftyjelly.pocketcasts.settings.onboarding.OnboardingUpgradeSource
 import au.com.shiftyjelly.pocketcasts.settings.privacy.PrivacyFragment
 import au.com.shiftyjelly.pocketcasts.ui.theme.Theme
-import au.com.shiftyjelly.pocketcasts.utils.extensions.getActivity
 import au.com.shiftyjelly.pocketcasts.views.fragments.BatteryRestrictionsSettingsFragment
 import au.com.shiftyjelly.pocketcasts.images.R as IR
 import au.com.shiftyjelly.pocketcasts.localization.R as LR
@@ -49,7 +44,6 @@ fun SettingsFragmentPage(
     openFragment: (Fragment) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     Column(
         modifier = modifier,
     ) {
@@ -80,21 +74,6 @@ fun SettingsFragmentPage(
                 }
             }
 
-            if (!signInState.isSignedIn || signInState.isSignedInAsFree) {
-                item {
-                    PlusRow(onClick = {
-                        OnboardingLauncher.openOnboardingFlow(
-                            requireNotNull(context.getActivity()),
-                            OnboardingFlow.Upsell(
-                                OnboardingUpgradeSource.SETTINGS,
-                            ),
-                        )
-                    })
-                }
-            }
-            item {
-                PodHopperAccountRow(onClick = { openFragment(PodHopperAccountFragment()) })
-            }
             item {
                 GeneralRow(onClick = { openFragment(PlaybackSettingsFragment()) })
             }
@@ -181,19 +160,6 @@ private fun BatteryOptimizationRow(onClick: () -> Unit) {
 }
 
 @Composable
-private fun PlusRow(onClick: () -> Unit) {
-    SettingRow(
-        primaryText = stringResource(LR.string.pocket_casts_plus),
-        icon = painterResource(IR.drawable.ic_plus),
-        iconGradientColors = listOf(
-            MaterialTheme.theme.colors.gradient01A,
-            MaterialTheme.theme.colors.gradient01E,
-        ),
-        modifier = Modifier.rowModifier(onClick),
-    )
-}
-
-@Composable
 private fun GeneralRow(onClick: () -> Unit) {
     SettingRow(
         primaryText = stringResource(LR.string.settings_title_playback),
@@ -218,15 +184,6 @@ private fun AppearanceRow(isSignedInAsPlusOrPatron: Boolean, onClick: () -> Unit
         icon = painterResource(SR.drawable.settings_appearance),
         primaryTextEndDrawable = if (isSignedInAsPlusOrPatron) null else IR.drawable.ic_plus,
         modifier = Modifier.rowModifier(onClick),
-    )
-}
-
-@Composable
-private fun PodHopperAccountRow(onClick: () -> Unit) {
-    SettingRow(
-        primaryText = stringResource(LR.string.podhopper_account),
-        modifier = Modifier.rowModifier(onClick),
-        indent = false,
     )
 }
 

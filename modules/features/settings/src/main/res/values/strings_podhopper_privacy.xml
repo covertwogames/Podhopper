@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="podhopper_privacy_title" translatable="false">PodHopper Privacy Policy</string>
+    <string name="podhopper_privacy_updated" translatable="false">Last updated: June 24, 2026</string>
+
+    <string name="podhopper_privacy_intro" translatable="false">PodHopper is developed by Cover Two Strategies LLC, doing business as Cover Two Games (\"we,\" \"us,\" \"our\"). This policy explains what the app handles and how. It is short on purpose, because the app is built to collect as little as possible.</string>
+
+    <string name="podhopper_privacy_short_heading" translatable="false">The short version</string>
+    <string name="podhopper_privacy_short_body" translatable="false">PodHopper does not track you, show ads, run analytics, or sell or share your information with anyone. The only information we handle is what is needed to sync your podcasts between your own devices.</string>
+
+    <string name="podhopper_privacy_local_heading" translatable="false">Stays on your device</string>
+    <string name="podhopper_privacy_local_body" translatable="false">Your listening statistics, the charts and totals on your stats page, are calculated and stored locally on your device and used only to display your stats in the app. They are never sent to us or anyone else.</string>
+
+    <string name="podhopper_privacy_sync_heading" translatable="false">Used for syncing</string>
+    <string name="podhopper_privacy_sync_body" translatable="false">If you create an account and sign in, PodHopper stores your podcast subscriptions and listening data, such as which episodes you have played and your progress, so they sync across the devices where you are signed in. That is the only reason this information is collected and the only thing it is used for. It lives on secure cloud infrastructure we use solely to run the sync feature. It is not made available to any third party for any reason: not sold, not rented, not shared for advertising. To sign in, we store the email address tied to your account, used only for authentication and account recovery.</string>
+
+    <string name="podhopper_privacy_dont_heading" translatable="false">What we do not do</string>
+    <string name="podhopper_privacy_dont_body" translatable="false">No advertising or ad tracking. No analytics or usage tracking. No third-party data sharing. No selling your data, ever.</string>
+
+    <string name="podhopper_privacy_security_heading" translatable="false">Security</string>
+    <string name="podhopper_privacy_security_body" translatable="false">We take reasonable measures to protect the syncing information. No system is perfectly secure, so we limit what we collect precisely so there is very little to protect.</string>
+
+    <string name="podhopper_privacy_children_heading" translatable="false">Children</string>
+    <string name="podhopper_privacy_children_body" translatable="false">PodHopper is not directed at children under 13, and we do not knowingly collect their personal information.</string>
+
+    <string name="podhopper_privacy_changes_heading" translatable="false">Changes</string>
+    <string name="podhopper_privacy_changes_body" translatable="false">If this policy changes, we will update the date above and post the new version in the app.</string>
+
+    <string name="podhopper_privacy_contact_heading" translatable="false">Contact</string>
+    <string name="podhopper_privacy_contact_body" translatable="false">Questions about this policy? Email info@covertwogames.com.</string>
+
+</resources>

@@ -1,87 +1,54 @@
-<p align="center">
-    <img src="https://user-images.githubusercontent.com/308331/194037473-41ad7eba-8602-4be5-be73-49e3c0c48c12.svg#gh-light-mode-only" />
-    <img src="https://user-images.githubusercontent.com/308331/194041226-4c6d8181-cafa-4ea8-8735-1d8106f5e5f6.svg#gh-dark-mode-only" />
-</p>
+# PodHopper
 
-<p align="center">
-    <a href="https://buildkite.com/automattic/pocket-casts-android"><img src="https://badge.buildkite.com/dc67ef3537ad6cf097ff193b28063347418205a341d55f9940.svg?branch=main" /></a>
-    <a href="https://github.com/Automattic/pocket-casts-android/blob/main/LICENSE.md"><img src="https://img.shields.io/badge/license-MPL-blue" /></a>
-</p>
+A privacy-first podcast player for Android.
 
-<p align="center">
-    Pocket Casts is the world's most powerful podcast platform, an app by listeners, for listeners.
-</p>
+PodHopper is an independent fork of [Pocket Casts](https://github.com/Automattic/pocket-casts-android), the podcast app open-sourced by Automattic. It keeps the parts that make a great listening app and strips out the parts that watch you. No ads, no analytics, no usage tracking. It is built and maintained by Cover Two Strategies LLC, doing business as Cover Two Games.
 
-## Install
+## What makes it different
 
-If you're just looking to install Pocket Casts Android, you can find it on [Google Play](https://play.google.com/store/apps/details?id=au.com.shiftyjelly.pocketcasts). If you're a developer wanting to contribute, read on.
+- **No tracking.** The inherited third-party analytics trackers have been removed. Nothing about how you use the app is transmitted anywhere.
+- **No ads.** There is no advertising and no ad tracking.
+- **Local by default.** Your listening stats are calculated and kept on your device.
+- **Sync that stays out of your way.** Sign in once and your subscriptions, your queue, and the exact spot you paused follow you from device to device. Start an episode on your phone, pick it up on a tablet, and it is right where you left it. That synced information is used for one thing only, keeping your devices in step.
 
-## Build Instructions
+See the in-app privacy policy or [podhopper.app](https://podhopper.app) for the full details.
 
-1. Make sure you've installed [Android Studio](https://developer.android.com/studio/index.html).
-2. In Android Studio, open the project from the local repository.
-3. Go to Tools → Device Manager and create an emulated device.
-4. Go to Run → Edit Configurations… and create an Android App configuration. 
-5. Select the module "pocketcasts-android.app.main".
-6. Run.
+## Building
 
-## Build and Test
+PodHopper is a standard multi-module Gradle project written in Kotlin with Jetpack Compose.
 
-To build, install, and test the project from the command line:
+Requirements:
 
-    $ ./gradlew :app:assembleDebugProd          # assemble the debug .apk
-    $ ./gradlew :app:installDebugProd           # install the debug .apk to a connected device
-    $ ./gradlew :app:testDebugUnitTest          # assemble, install and run unit tests
-    $ ./gradlew :app:connectedDebugAndroidTest  # assemble, install and run Android tests
+- Android Studio (latest stable) with its bundled JDK
+- Android SDK with compileSdk 36 installed
+- minSdk 24
 
-## Directory structure
-    .
-    ├── app                    # Mobile app
-    ├── automotive             # Automotive app
-    ├── modules
-    │   ├── features
-    │   │   ├── account        # Create account and sign in pages.
-    │   │   ├── cartheme       # Automotive resources needed for the account pages.
-    │   │   ├── discover       # Discover section.
-    │   │   ├── endofyear      # End of year stats.
-    │   │   ├── filters        # Filters section.
-    │   │   ├── navigation     # Navigation utilities.
-    │   │   ├── player         # Full screen player
-    │   │   ├── podcasts       # Podcasts section.
-    │   │   ├── profile        # Profile section.
-    │   │   ├── search         # Search pages.
-    │   │   ├── settings       # Settings pages.
-    │   │   └── taskerplugin   # Plugin for integration with Tasker app.
-    │   └── services
-    │       ├── analytics      # Analytics code.
-    │       ├── compose        # Shared Compose code.
-    │       ├── images         # Image resources.
-    │       ├── localization   # Contains the strings in English and localized strings from GlotPress. 
-    │       ├── model          # The database logic and entities. Also transfer objects required which aren't stored in the database.
-    │       ├── preferences    # Stores the user preferences and configuration settings.
-    │       ├── repositories   # Provides accessing to the data from the 'servers' and 'model' modules.
-    │       ├── servers        # Provides the network calls to the servers. The UI layer should access these through the 'repositories' module.
-    │       ├── ui             # Shared UI code for the 'compose' and 'views' modules. This includes the themes.
-    │       ├── utils          # Utility classes.
-    │       └── views          # Shred Only the old views code.
+To build:
 
-The hierarchy of the modules in the project are reflected in [this diagram](docs/module-diagram.png).
+1. Clone the repository.
+2. Open the project folder in Android Studio.
+3. Let the initial Gradle sync finish.
+4. Select the app run configuration and press Run, or build a debug APK from the command line with the Gradle wrapper:
 
-## Contributing
+   - Windows (PowerShell): `.\gradlew assembleDebug`
+   - macOS or Linux: `./gradlew assembleDebug`
 
-Read our [Contributing Guide](CONTRIBUTING.md) to learn about reporting issues, contributing code, and more ways to contribute.
+## Roadmap
 
-## Documentation
+- **Android Automotive (AAOS).** The goal PodHopper is built toward is carrying that same effortless handoff straight into your dashboard. On vehicles with Android Automotive built in, the episode you started in the kitchen should already be cued up the moment you start the engine, no phone in hand. It is a separate app target with its own sign-in flow, and it is the headline feature still in progress.
 
-- [Coding Style](docs/coding-style.md) - guidelines and validation and auto-formatting tools
-- [Pull Request Guidelines](docs/pull-request-guidelines.md) - branch naming and how to write good pull requests
-- [Translations](docs/translations.md) - how the app gets translated and how to contribute translations
+## Privacy
 
-## Signing a Release
+PodHopper is built to collect as little as possible. The short version: it does not track you, show ads, run analytics, or sell or share your information. The only information it handles is what is needed to sync your podcasts between your own devices. Full policy: [podhopper.app](https://podhopper.app).
 
-To build a _signed_ release, add these lines to your local.properties file
+## License
 
-    signingKeyStoreFile=/Users/username/git/secret.keystore
-    signingKeyStorePassword=
-    signingKeyAlias=
-    signingKeyPassword=
+PodHopper is based on Pocket Casts by Automattic and is distributed under the Mozilla Public License 2.0 (MPL-2.0). The full license text is in [LICENSE.md](LICENSE.md).
+
+Original Pocket Casts code is Copyright Automattic, Inc. New PodHopper code is Copyright Cover Two Strategies LLC.
+
+Pocket Casts is a trademark of Automattic, Inc. PodHopper is an independent project and is not affiliated with, sponsored by, or endorsed by Automattic.
+
+## Contact
+
+Questions or feedback: info@covertwogames.com

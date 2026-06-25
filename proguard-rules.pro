@@ -44,6 +44,18 @@
 # https://github.com/Automattic/pocket-casts-android/issues/5005
 -keep class au.com.shiftyjelly.pocketcasts.widget.action.** { *; }
 
+# Stalla (dev.stalla) is PodHopper's on-device RSS feed parser ("PodHopper feed
+# engine" in libs.versions.toml). It uses Kotlin reflection internally to resolve
+# properties on its validating builder/model classes while parsing a feed. R8
+# renames those property accessors, so the reflection fails at runtime and the
+# feed refresh crashes, e.g.:
+#   "Property 'title' (JVM signature: getTitle()...) not resolved in class
+#    dev.stalla.builder.validating.podcast.ValidatingPodcastBuilder"
+# Keeping the whole library unrenamed lets that reflection resolve. This single
+# rule covers every Stalla builder/model class, so no individual feed field can
+# become the next thing that breaks.
+-keep class dev.stalla.** { *; }
+
 #
 # ██      ███████  ██████   █████   ██████ ██    ██      ██████  ██████  ███    ██ ███████ ██  ██████
 # ██      ██      ██       ██   ██ ██       ██  ██      ██      ██    ██ ████   ██ ██      ██ ██

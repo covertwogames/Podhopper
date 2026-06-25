@@ -15,12 +15,14 @@ import au.com.shiftyjelly.pocketcasts.models.entity.BaseEpisode
 import au.com.shiftyjelly.pocketcasts.models.entity.Podcast
 import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
 import au.com.shiftyjelly.pocketcasts.models.to.FolderItem
+import au.com.shiftyjelly.pocketcasts.models.to.ImprovedSearchResultItem
 import au.com.shiftyjelly.pocketcasts.models.to.PlaylistEpisode
 import au.com.shiftyjelly.pocketcasts.models.type.PodcastsSortType
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.preferences.model.AutoPlaySource
 import au.com.shiftyjelly.pocketcasts.repositories.images.PodcastImage
 import au.com.shiftyjelly.pocketcasts.repositories.lists.ListRepository
+import au.com.shiftyjelly.pocketcasts.repositories.search.ImprovedSearchManager
 import au.com.shiftyjelly.pocketcasts.repositories.playback.auto.AutoConverter
 import au.com.shiftyjelly.pocketcasts.repositories.playback.auto.AutoConverter.convertFolderToMediaItem
 import au.com.shiftyjelly.pocketcasts.repositories.playback.auto.AutoConverter.convertPodcastToMediaItem
@@ -67,6 +69,7 @@ class BrowseTreeProvider @Inject constructor(
     private val settings: Settings,
     private val serviceManager: ServiceManager,
     private val listRepository: ListRepository,
+    private val improvedSearchManager: ImprovedSearchManager,
 ) {
 
     fun getRootId(isRecent: Boolean, isSuggested: Boolean, hasCurrentEpisode: Boolean): String? {
@@ -518,7 +521,19 @@ class BrowseTreeProvider @Inject constructor(
             if (termCleaned.length <= 1) {
                 emptyList()
             } else {
-                serviceManager.searchForPodcasts(searchTerm = query).getOrThrow().searchResults
+                // PodHopper: search the iTunes directory for new podcasts instead of the Pocket Casts
+                // search server, mirroring the in-app search path. Each result maps to a feed-backed
+                // podcast carrying its own rss feed url.
+                improvedSearchManager.combinedSearch(termCleaned)
+                    .filterIsInstance<ImprovedSearchResultItem.PodcastItem>()
+                    .map { item ->
+                        Podcast(
+                            uuid = item.uuid,
+                            title = item.title,
+                            author = item.author,
+                            podcastUrl = item.feedUrl,
+                        )
+                    }
             }
         } catch (ex: Exception) {
             Timber.e(ex)

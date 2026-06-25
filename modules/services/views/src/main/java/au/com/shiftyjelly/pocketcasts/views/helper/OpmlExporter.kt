@@ -54,20 +54,21 @@ class OpmlExporter(
 
         exportJob?.cancel()
         exportJob = applicationScope.launch {
-            val uuidToTitle = podcastManager.findSubscribedNoOrder().associateBy({ it.uuid }, { it.title })
-            val uuids = uuidToTitle.keys.toList()
+            // PodHopper: build the OPML on-device from each podcast's own rss feed url. No Pocket Casts
+            // server call. Every subscribed podcast already stores its feed url locally, and Pocket Casts
+            // cannot resolve our feed-derived uuids anyway, so the old server export always failed here.
+            val subscribed = podcastManager.findSubscribedNoOrder()
+            val uuidToTitle = subscribed.associateBy({ it.uuid }, { it.title })
+            val uuidToFeedUrls = subscribed
+                .filter { !it.podcastUrl.isNullOrBlank() }
+                .associateBy({ it.uuid }, { it.podcastUrl ?: "" })
 
-            val opmlFile = serviceManager.exportFeedUrls(uuids)
-                .onFailure { trackFailure(reason = "server_call_failure") }
-                .getOrNull()
-                ?.let { result ->
-                    runCatching { exportOpml(uuidToTitle, result, context) }
-                        .onFailure { error ->
-                            trackFailure(reason = "unknown")
-                            Timber.e(error)
-                        }
+            val opmlFile = runCatching { exportOpml(uuidToTitle, uuidToFeedUrls, context) }
+                .onFailure { error ->
+                    trackFailure(reason = "unknown")
+                    Timber.e(error)
                 }
-                ?.getOrNull()
+                .getOrNull()
                 ?.takeIf(File::exists)
 
             withContext(Dispatchers.Main) {
@@ -156,7 +157,7 @@ class OpmlExporter(
                 attribute("", "version", "1.0")
                 startTag("", "head")
                 startTag("", "title")
-                text("Pocket Casts Feeds")
+                text("PodHopper Feeds")
                 endTag("", "title")
                 endTag("", "head")
                 startTag("", "body")

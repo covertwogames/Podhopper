@@ -835,10 +835,6 @@ private fun Flowable<CombinedData>.buildUiState(
         Flowable.combineLatest(
             episodeManager.findEpisodesByPodcastOrderedFlow(podcast)
                 .asFlowable()
-                .doOnNext {
-                    // load the recommendations after the episodes have been loaded
-                    recommendationsHandler.setEnabled(true)
-                }
                 .map {
                     val sortFunction = podcast.grouping.sortFunction
                     if (sortFunction != null) {

@@ -4,6 +4,8 @@ import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.servers.di.Raw
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -34,6 +36,15 @@ class SupabaseClient @Inject constructor(
     private var tokenExpiresAtMs: Long = 0
 
     fun isLoggedIn(): Boolean = settings.podhopperRefreshToken.value.isNotEmpty()
+
+    /**
+     * Emits the current sign-in state and every later change to it: true once a refresh token is
+     * stored (sign-in or sign-up succeeded), false when it is cleared (sign-out or an expired
+     * session). Lets sync components react the instant sign-in completes instead of polling
+     * isLoggedIn() or racing an activity lifecycle callback.
+     */
+    val loginState: Flow<Boolean>
+        get() = settings.podhopperRefreshToken.flow.map { it.isNotEmpty() }
 
     @Synchronized
     fun login(email: String, password: String) {

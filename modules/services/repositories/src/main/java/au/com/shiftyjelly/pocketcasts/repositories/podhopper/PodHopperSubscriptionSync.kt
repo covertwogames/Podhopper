@@ -11,12 +11,17 @@ import au.com.shiftyjelly.pocketcasts.repositories.podcast.SubscribeManager
 import au.com.shiftyjelly.pocketcasts.utils.log.LogBuffer
 import dagger.Lazy
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -62,8 +67,15 @@ class PodHopperSubscriptionSync @Inject constructor(
     @Volatile
     private var periodicJob: Job? = null
 
+    // Guards against two sync passes running at once. A pull requested while one is already in
+    // flight is skipped; its work is covered by the running pass or the next trigger, and any
+    // queued local change persists until then. This matters most right after sign-in, when the
+    // login pull and MainActivity.onStart can both fire while the full library is downloading.
+    private val syncInFlight = AtomicBoolean(false)
+
     init {
         observeSubscriptionChanges()
+        observeSignIn()
     }
 
     /**
@@ -84,6 +96,25 @@ class PodHopperSubscriptionSync @Inject constructor(
                 pullSubscriptions()
             }
         }
+    }
+
+    /**
+     * Pulls subscriptions the instant sign-in completes, so a freshly signed-in user lands on a
+     * populated Podcasts screen instead of waiting for the next navigation or the periodic loop.
+     * Watching login state here (rather than hooking each sign-in screen) covers every entry path:
+     * email login, account creation, and any future provider. The startup value is dropped, so only
+     * a real transition into the signed-in state triggers a pull; sign-out does not.
+     */
+    private fun observeSignIn() {
+        supabaseClient.loginState
+            .distinctUntilChanged()
+            .drop(1)
+            .onEach { loggedIn ->
+                if (loggedIn) {
+                    pullSubscriptions()
+                }
+            }
+            .launchIn(applicationScope)
     }
 
     private suspend fun enqueueLocalChange(uuid: String) {
@@ -130,12 +161,17 @@ class PodHopperSubscriptionSync @Inject constructor(
         if (!supabaseClient.isLoggedIn()) {
             return
         }
+        if (!syncInFlight.compareAndSet(false, true)) {
+            return
+        }
         lastPollMs = System.currentTimeMillis()
         applicationScope.launch(Dispatchers.IO) {
             try {
                 runSync()
             } catch (e: Exception) {
                 LogBuffer.i(LogBuffer.TAG_BACKGROUND_TASKS, "SUBSYNC sync FAILED: ${e.message}")
+            } finally {
+                syncInFlight.set(false)
             }
         }
     }
@@ -154,8 +190,9 @@ class PodHopperSubscriptionSync @Inject constructor(
 
     /**
      * Starts a foreground poll loop so an already open device notices changes from other devices
-     * without being reopened. Call from onStart. Safe to call repeatedly; a second call while a
-     * loop is already running is ignored.
+     * without being reopened. The first poll runs immediately, then once every
+     * [PERIODIC_SYNC_INTERVAL_MS] after. Call from onStart. Safe to call repeatedly; a second call
+     * while a loop is already running is ignored.
      */
     fun startPeriodicSync() {
         if (periodicJob?.isActive == true) {
@@ -163,8 +200,8 @@ class PodHopperSubscriptionSync @Inject constructor(
         }
         periodicJob = applicationScope.launch(Dispatchers.IO) {
             while (isActive) {
-                delay(PERIODIC_SYNC_INTERVAL_MS)
                 pollSubscriptions()
+                delay(PERIODIC_SYNC_INTERVAL_MS)
             }
         }
     }

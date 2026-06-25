@@ -16,6 +16,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -48,6 +52,29 @@ class PodHopperPositionSync @Inject constructor(
 ) {
     @Volatile
     private var lastPushAttemptMs = 0L
+
+    init {
+        observeSignIn()
+    }
+
+    /**
+     * Pulls the latest cross-device positions the instant sign-in completes, so resume points are
+     * correct as soon as a freshly signed-in user starts playing, instead of waiting for the next
+     * foreground pull. Same approach as the subscription sync: watch login state, drop the startup
+     * value, and react only to the transition into the signed-in state. A position pull is
+     * idempotent, so no in-flight guard is needed here.
+     */
+    private fun observeSignIn() {
+        supabaseClient.loginState
+            .distinctUntilChanged()
+            .drop(1)
+            .onEach { loggedIn ->
+                if (loggedIn) {
+                    pullLatestPositions()
+                }
+            }
+            .launchIn(applicationScope)
+    }
 
     /**
      * Push a single episode position to Supabase. Throttled to one push every

@@ -18,12 +18,11 @@ import au.com.shiftyjelly.pocketcasts.compose.extensions.contentWithoutConsumedI
 import au.com.shiftyjelly.pocketcasts.endofyear.StoriesActivity.StoriesSource
 import au.com.shiftyjelly.pocketcasts.player.view.bookmark.BookmarksContainerFragment
 import au.com.shiftyjelly.pocketcasts.podcasts.view.ProfileEpisodeListFragment
-import au.com.shiftyjelly.pocketcasts.profile.blogs.BlogsFragment
+import au.com.shiftyjelly.pocketcasts.settings.HelpFeedbackFragment
 import au.com.shiftyjelly.pocketcasts.profile.cloud.CloudFilesFragment
 import au.com.shiftyjelly.pocketcasts.referrals.ReferralsGuestPassFragment
 import au.com.shiftyjelly.pocketcasts.referrals.ReferralsGuestPassFragment.ReferralsPageType
 import au.com.shiftyjelly.pocketcasts.referrals.ReferralsViewModel
-import au.com.shiftyjelly.pocketcasts.settings.HelpFragment
 import au.com.shiftyjelly.pocketcasts.settings.SettingsFragment
 import au.com.shiftyjelly.pocketcasts.settings.onboarding.OnboardingFlow
 import au.com.shiftyjelly.pocketcasts.settings.onboarding.OnboardingLauncher
@@ -171,11 +170,10 @@ class ProfileFragment :
             ProfileSection.Stats -> StatsFragment()
             ProfileSection.Downloads -> ProfileEpisodeListFragment.newInstance(ProfileEpisodeListFragment.Mode.Downloaded)
             ProfileSection.CloudFiles -> CloudFilesFragment()
-            ProfileSection.Blogs -> BlogsFragment()
             ProfileSection.Starred -> ProfileEpisodeListFragment.newInstance(ProfileEpisodeListFragment.Mode.Starred)
             ProfileSection.Bookmarks -> BookmarksContainerFragment.newInstance(sourceView = SourceView.PROFILE)
             ProfileSection.ListeningHistory -> ProfileEpisodeListFragment.newInstance(ProfileEpisodeListFragment.Mode.History)
-            ProfileSection.Help -> HelpFragment()
+            ProfileSection.Help -> HelpFeedbackFragment()
         }
         fragmentHostListener.addFragment(fragment)
     }

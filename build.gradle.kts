@@ -413,7 +413,10 @@ subprojects {
 
                 maybeCreate("prototype").apply {
                     isMinifyEnabled = true
-                    isShrinkResources = true
+                    // Resource shrinking disabled: it strips in-use drawables that are
+                    // referenced through variables (e.g. the player shelf icons), leaving them
+                    // blank in minified builds. R8 code minification stays on.
+                    isShrinkResources = false
                     proguardFiles.addAll(
                         listOf(
                             getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -433,7 +436,10 @@ subprojects {
                     }
 
                     isMinifyEnabled = true
-                    isShrinkResources = true
+                    // Resource shrinking disabled: it strips in-use drawables that are
+                    // referenced through variables (e.g. the player shelf icons), leaving them
+                    // blank in the release build. R8 code minification and obfuscation stay on.
+                    isShrinkResources = false
                     proguardFiles.addAll(
                         listOf(
                             getDefaultProguardFile("proguard-android-optimize.txt"),

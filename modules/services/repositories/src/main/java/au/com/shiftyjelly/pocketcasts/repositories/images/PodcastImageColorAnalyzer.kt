@@ -6,6 +6,7 @@ import androidx.palette.graphics.Palette
 import coil3.ImageLoader
 import coil3.request.ErrorResult
 import coil3.request.SuccessResult
+import coil3.request.allowHardware
 import coil3.toBitmap
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -20,6 +21,9 @@ class PodcastImageColorAnalyzer @Inject constructor(
 
     suspend fun getArtworkDominantColor(uuid: String): Color? {
         val request = requestFactory.createForPodcast(uuid)
+            .newBuilder()
+            .allowHardware(false)
+            .build()
         val bitmap = when (val result = imageLoader.execute(request)) {
             is SuccessResult -> result.memoryCacheKey?.let { key ->
                 imageLoader.memoryCache?.get(key)?.image?.toBitmap()

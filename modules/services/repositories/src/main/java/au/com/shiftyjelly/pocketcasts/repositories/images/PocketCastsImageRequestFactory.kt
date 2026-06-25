@@ -12,6 +12,7 @@ import coil3.imageLoader
 import coil3.request.ErrorResult
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
+import coil3.request.crossfade
 import coil3.request.error
 import coil3.request.placeholder
 import coil3.request.target
@@ -32,11 +33,12 @@ data class PocketCastsImageRequestFactory(
     private val placeholderType: PlaceholderType = PlaceholderType.Large,
     private val transformations: List<Transformation> = emptyList(),
     private val showErrorPlaceholder: Boolean = true,
+    private val crossfade: Boolean = true,
 ) {
     private val actualCornerRadius = cornerRadius.dpToPx(context)
     private val actualSize = size?.dpToPx(context)?.takeIf { it > 0 }
 
-    fun smallSize() = copy(size = 128)
+    fun smallSize() = copy(size = 128, crossfade = false)
 
     fun createForPodcast(
         podcastUuid: String?,
@@ -80,11 +82,14 @@ data class PocketCastsImageRequestFactory(
         .let { if (showErrorPlaceholder) it.error(if (isDarkTheme) IR.drawable.defaultartwork_dark else IR.drawable.defaultartwork) else it }
         .transformations(
             buildList {
-                add(RoundedCornersTransformation(actualCornerRadius.toFloat()))
+                if (actualCornerRadius > 0) {
+                    add(RoundedCornersTransformation(actualCornerRadius.toFloat()))
+                }
                 addAll(transformations)
             },
         )
         .let { if (actualSize != null) it.size(actualSize) else it }
+        .crossfade(crossfade)
         .listener(type.listener(context, onSuccess))
         .build()
 

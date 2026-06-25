@@ -6,6 +6,7 @@ import au.com.shiftyjelly.pocketcasts.servers.di.Artwork
 import coil3.ImageLoader
 import coil3.disk.DiskCache
 import coil3.disk.directory
+import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import dagger.Lazy
@@ -30,6 +31,11 @@ class UiModule {
     ): ImageLoader {
         return ImageLoader.Builder(context)
             .crossfade(true)
+            .memoryCache {
+                MemoryCache.Builder()
+                    .maxSizePercent(context, 0.25)
+                    .build()
+            }
             .components {
                 add(feedArtworkInterceptor)
                 add(
@@ -41,6 +47,7 @@ class UiModule {
             .diskCache {
                 DiskCache.Builder()
                     .directory(context.cacheDir.resolve("ImageCache"))
+                    .maxSizeBytes(512L * 1024 * 1024)
                     .build()
             }
             .build()

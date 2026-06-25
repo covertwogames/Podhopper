@@ -72,6 +72,7 @@ fun PodcastImage(
             context = context,
             placeholderType = placeholderType,
             size = imageRequestSize.value.toInt(),
+            crossfade = placeholderType == PlaceholderType.Large,
         ).themed()
         // PodHopper: when a direct artwork url is supplied (iTunes search result or feed image),
         // load it instead of the id-based Pocket Casts image url, which has no feed podcasts.

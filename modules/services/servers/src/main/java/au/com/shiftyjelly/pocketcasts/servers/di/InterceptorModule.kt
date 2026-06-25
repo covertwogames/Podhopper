@@ -32,8 +32,8 @@ import okhttp3.logging.HttpLoggingInterceptor
 @InstallIn(SingletonComponent::class)
 @Module
 object InterceptorModule {
-    const val PC_PUBLIC_USER_AGENT = "Pocket Casts"
-    const val PC_INTERNAL_USER_AGENT = "$PC_PUBLIC_USER_AGENT/Android/${BuildConfig.VERSION_NAME}"
+    const val PC_PUBLIC_USER_AGENT = "PodHopper/Android/${BuildConfig.VERSION_NAME}"
+    const val PC_INTERNAL_USER_AGENT = PC_PUBLIC_USER_AGENT
 
     private val fiveMinutes = 5.minutes.inWholeSeconds
     private val cacheControlHeader = "Cache-Control"

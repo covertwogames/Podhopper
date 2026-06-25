@@ -765,7 +765,7 @@ class AddFileActivity :
         })
 
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent("Pocket Casts")
+            .setUserAgent("PodHopper")
             .setAllowCrossProtocolRedirects(true)
         val dataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
         val extractorsFactory = DefaultExtractorsFactory().setMp3ExtractorFlags(Mp3Extractor.FLAG_ENABLE_CONSTANT_BITRATE_SEEKING)

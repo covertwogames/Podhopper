@@ -29,7 +29,6 @@ import au.com.shiftyjelly.pocketcasts.servers.podcast.PodcastCacheService
 import au.com.shiftyjelly.pocketcasts.servers.podcast.TranscriptService
 import au.com.shiftyjelly.pocketcasts.servers.refresh.RefreshService
 import au.com.shiftyjelly.pocketcasts.servers.search.AutoCompleteResult
-import au.com.shiftyjelly.pocketcasts.servers.search.AutoCompleteSearchService
 import au.com.shiftyjelly.pocketcasts.servers.search.CombinedResult
 import au.com.shiftyjelly.pocketcasts.servers.server.ListWebService
 import au.com.shiftyjelly.pocketcasts.servers.sync.LoginIdentity
@@ -384,10 +383,6 @@ class NetworkModule {
     @Provides
     @Singleton
     fun provideListWebService(@DiscoverServiceRetrofit retrofit: Retrofit): ListWebService = retrofit.create()
-
-    @Singleton
-    @Provides
-    fun provideAutoCompleteSearchService(@SearchRetrofit retrofit: Retrofit): AutoCompleteSearchService = retrofit.create()
 
     @Provides
     @Singleton

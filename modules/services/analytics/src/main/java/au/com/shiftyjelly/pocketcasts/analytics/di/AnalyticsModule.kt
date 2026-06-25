@@ -7,7 +7,6 @@ import au.com.shiftyjelly.pocketcasts.analytics.AnalyticsListener
 import au.com.shiftyjelly.pocketcasts.analytics.AnalyticsTracker
 import au.com.shiftyjelly.pocketcasts.analytics.BuildConfig
 import au.com.shiftyjelly.pocketcasts.analytics.EventSink
-import au.com.shiftyjelly.pocketcasts.analytics.FirebaseAnalyticsWrapper
 import au.com.shiftyjelly.pocketcasts.analytics.LoggingAnalyticsListener
 import au.com.shiftyjelly.pocketcasts.analytics.NoOpTracker
 import au.com.shiftyjelly.pocketcasts.analytics.experiments.Experiment
@@ -17,7 +16,6 @@ import au.com.shiftyjelly.pocketcasts.utils.log.LogBuffer
 import com.automattic.android.experimentation.ExperimentLogger
 import com.automattic.android.experimentation.VariationsRepository
 import com.automattic.eventhorizon.EventHorizon
-import com.google.firebase.analytics.FirebaseAnalytics
 import dagger.Binds
 import dagger.Lazy
 import dagger.Module
@@ -54,12 +52,6 @@ abstract class AnalyticsModule {
         @Singleton
         fun provideEventHorizon(eventSink: EventSink): EventHorizon {
             return EventHorizon(eventSink)
-        }
-
-        @Provides
-        @Singleton
-        fun provideFirebaseAnalytics(@ApplicationContext context: Context): FirebaseAnalyticsWrapper {
-            return FirebaseAnalyticsWrapper(FirebaseAnalytics.getInstance(context))
         }
 
         @Provides

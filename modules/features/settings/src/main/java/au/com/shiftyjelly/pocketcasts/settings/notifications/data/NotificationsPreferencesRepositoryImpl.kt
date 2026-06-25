@@ -89,28 +89,6 @@ internal class NotificationsPreferencesRepositoryImpl @Inject constructor(
             if (notificationFeaturesProvider.isRevampFeatureEnabled) {
                 add(
                     NotificationPreferenceCategory(
-                        title = TextResource.fromStringId(LR.string.settings_notification_recommendations),
-                        preferences = buildList {
-                            add(
-                                NotificationPreferenceType.EnableRecommendations(
-                                    title = TextResource.fromStringId(LR.string.settings_notification_notify_me),
-                                    isEnabled = settings.recommendationsNotification.value,
-                                ),
-                            )
-                            if (settings.recommendationsNotification.value && notificationFeaturesProvider.hasNotificationChannels) {
-                                add(
-                                    NotificationPreferenceType.RecommendationSettings(
-                                        title = TextResource.fromStringId(LR.string.settings_notification_advanced),
-                                        description = TextResource.fromStringId(LR.string.settings_notification_advanced_summary),
-                                    ),
-                                )
-                            }
-                        },
-                    ),
-                )
-
-                add(
-                    NotificationPreferenceCategory(
                         title = TextResource.fromStringId(LR.string.settings_notification_daily_reminders),
                         preferences = buildList {
                             add(
@@ -122,50 +100,6 @@ internal class NotificationsPreferencesRepositoryImpl @Inject constructor(
                             if (settings.dailyRemindersNotification.value && notificationFeaturesProvider.hasNotificationChannels) {
                                 add(
                                     NotificationPreferenceType.DailyReminderSettings(
-                                        title = TextResource.fromStringId(LR.string.settings_notification_advanced),
-                                        description = TextResource.fromStringId(LR.string.settings_notification_advanced_summary),
-                                    ),
-                                )
-                            }
-                        },
-                    ),
-                )
-
-                add(
-                    NotificationPreferenceCategory(
-                        title = TextResource.fromStringId(LR.string.settings_notification_new_features),
-                        preferences = buildList {
-                            add(
-                                NotificationPreferenceType.EnableNewFeaturesAndTips(
-                                    title = TextResource.fromStringId(LR.string.settings_notification_notify_me),
-                                    isEnabled = settings.newFeaturesNotification.value,
-                                ),
-                            )
-                            if (settings.newFeaturesNotification.value && notificationFeaturesProvider.hasNotificationChannels) {
-                                add(
-                                    NotificationPreferenceType.NewFeaturesAndTipsSettings(
-                                        title = TextResource.fromStringId(LR.string.settings_notification_advanced),
-                                        description = TextResource.fromStringId(LR.string.settings_notification_advanced_summary),
-                                    ),
-                                )
-                            }
-                        },
-                    ),
-                )
-
-                add(
-                    NotificationPreferenceCategory(
-                        title = TextResource.fromStringId(LR.string.settings_notification_offers),
-                        preferences = buildList {
-                            add(
-                                NotificationPreferenceType.EnableOffers(
-                                    title = TextResource.fromStringId(LR.string.settings_notification_notify_me),
-                                    isEnabled = settings.offersNotification.value,
-                                ),
-                            )
-                            if (settings.offersNotification.value && notificationFeaturesProvider.hasNotificationChannels) {
-                                add(
-                                    NotificationPreferenceType.OffersSettings(
                                         title = TextResource.fromStringId(LR.string.settings_notification_advanced),
                                         description = TextResource.fromStringId(LR.string.settings_notification_advanced_summary),
                                     ),
@@ -278,21 +212,6 @@ internal class NotificationsPreferencesRepositoryImpl @Inject constructor(
                 settings.dailyRemindersNotification.set(value = preference.isEnabled, updateModifiedAt = true)
             }
 
-            is NotificationPreferenceType.EnableRecommendations -> {
-                settings.recommendationsNotification.set(value = preference.isEnabled, updateModifiedAt = true)
-            }
-
-            is NotificationPreferenceType.EnableNewFeaturesAndTips -> {
-                settings.newFeaturesNotification.set(value = preference.isEnabled, updateModifiedAt = true)
-            }
-
-            is NotificationPreferenceType.EnableOffers -> {
-                settings.offersNotification.set(value = preference.isEnabled, updateModifiedAt = true)
-            }
-
-            is NotificationPreferenceType.OffersSettings,
-            is NotificationPreferenceType.NewFeaturesAndTipsSettings,
-            is NotificationPreferenceType.RecommendationSettings,
             is NotificationPreferenceType.DailyReminderSettings,
             is NotificationPreferenceType.AdvancedSettings,
             is NotificationPreferenceType.NotifyOnThesePodcasts,

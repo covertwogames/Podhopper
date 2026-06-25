@@ -65,45 +65,6 @@ internal fun NotificationPreferenceCategory(
                     )
                 }
 
-                is NotificationPreferenceType.EnableRecommendations -> {
-                    SettingRow(
-                        enabled = isEnabled,
-                        primaryText = item.title.asString(),
-                        toggle = SettingRowToggle.Switch(checked = item.isEnabled, enabled = isEnabled),
-                        modifier = Modifier.toggleable(
-                            enabled = isEnabled,
-                            value = item.isEnabled,
-                            role = Role.Switch,
-                        ) { onItemClick(item.copy(isEnabled = !item.isEnabled)) },
-                    )
-                }
-
-                is NotificationPreferenceType.EnableNewFeaturesAndTips -> {
-                    SettingRow(
-                        enabled = isEnabled,
-                        primaryText = item.title.asString(),
-                        toggle = SettingRowToggle.Switch(checked = item.isEnabled, enabled = isEnabled),
-                        modifier = Modifier.toggleable(
-                            enabled = isEnabled,
-                            value = item.isEnabled,
-                            role = Role.Switch,
-                        ) { onItemClick(item.copy(isEnabled = !item.isEnabled)) },
-                    )
-                }
-
-                is NotificationPreferenceType.EnableOffers -> {
-                    SettingRow(
-                        enabled = isEnabled,
-                        primaryText = item.title.asString(),
-                        toggle = SettingRowToggle.Switch(checked = item.isEnabled, enabled = isEnabled),
-                        modifier = Modifier.toggleable(
-                            enabled = isEnabled,
-                            value = item.isEnabled,
-                            role = Role.Switch,
-                        ) { onItemClick(item.copy(isEnabled = !item.isEnabled)) },
-                    )
-                }
-
                 is NotificationPreferenceType.HidePlaybackNotificationOnPause -> {
                     SettingRow(
                         primaryText = item.title.asString(),
@@ -134,33 +95,6 @@ internal fun NotificationPreferenceCategory(
                 }
 
                 is NotificationPreferenceType.DailyReminderSettings -> {
-                    SettingRow(
-                        enabled = isEnabled,
-                        primaryText = item.title.asString(),
-                        secondaryText = item.description.asString(),
-                        modifier = Modifier.clickable(enabled = isEnabled) { onItemClick(item) },
-                    )
-                }
-
-                is NotificationPreferenceType.RecommendationSettings -> {
-                    SettingRow(
-                        enabled = isEnabled,
-                        primaryText = item.title.asString(),
-                        secondaryText = item.description.asString(),
-                        modifier = Modifier.clickable(enabled = isEnabled) { onItemClick(item) },
-                    )
-                }
-
-                is NotificationPreferenceType.NewFeaturesAndTipsSettings -> {
-                    SettingRow(
-                        enabled = isEnabled,
-                        primaryText = item.title.asString(),
-                        secondaryText = item.description.asString(),
-                        modifier = Modifier.clickable(enabled = isEnabled) { onItemClick(item) },
-                    )
-                }
-
-                is NotificationPreferenceType.OffersSettings -> {
                     SettingRow(
                         enabled = isEnabled,
                         primaryText = item.title.asString(),

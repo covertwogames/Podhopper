@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PodHopper brand overrides. App-module resources override the same-named
+     strings inherited from the localization library module. -->
+<resources>
+    <string name="settings_about_share_with_friends_message">Hey! Here is a link to download PodHopper. I\'m really enjoying it and thought you might too. \nhttps://podhopper.app</string>
+    <string name="settings_playback_resumption_summary">If on, PodHopper will go back a little in episodes you resume so you can catch up more comfortably.</string>
+    <string name="settings_refresh_artwork_message">PodHopper is now refreshing all your podcast images, this will happen in the background and may take a little time.</string>
+    <string name="settings_use_episode_artwork_details">Some shows have custom artwork for certain episodes. Enable this option and PodHopper will display them instead of the show’s artwork.</string>
+    <string name="settings_storage_fix_downloads_description">Attempt to restore any downloaded files if they are missing in the PodHopper app.</string>
+    <string name="settings_advanced_prioritize_seek_accuracy_summary">Prioritizing seek accuracy can significantly slow down seek responsiveness and cause PodHopper to consume more data.</string>
+    <string name="notifications_settings_turn_on_push_message">To get notifications from PodHopper, you\'ll need to turn them on in your device settings.</string>
+    <string name="settings_status_service_hosts_help">The most common cause is that you have an ad-blocker configured on your phone or network. You’ll need to unblock this domain to download podcasts. Please note PodHopper doesn’t host or choose where podcasts are hosted, that’s up to the author of the show and is out of our control.</string>
+    <string name="settings_status_service_hosts_summary">Podcast authors host episode files in various hosting providers not managed by PodHopper.</string>
+</resources>

@@ -83,9 +83,6 @@ internal fun NotificationsSettingsScreen(
                             when (preference) {
                                 is NotificationPreferenceType.AdvancedSettings,
                                 is NotificationPreferenceType.DailyReminderSettings,
-                                is NotificationPreferenceType.RecommendationSettings,
-                                is NotificationPreferenceType.NewFeaturesAndTipsSettings,
-                                is NotificationPreferenceType.OffersSettings,
                                 -> {
                                     onAdvancedSettingsClick(preference)
                                 }

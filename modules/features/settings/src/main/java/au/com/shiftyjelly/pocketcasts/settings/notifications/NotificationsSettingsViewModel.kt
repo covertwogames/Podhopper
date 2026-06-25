@@ -18,16 +18,10 @@ import com.automattic.eventhorizon.SettingsNotificationsAdvancedSettingsTappedEv
 import com.automattic.eventhorizon.SettingsNotificationsDailyRemindersToggleEvent
 import com.automattic.eventhorizon.SettingsNotificationsHidePlaybackNotificationOnPauseEvent
 import com.automattic.eventhorizon.SettingsNotificationsNewEpisodesToggledEvent
-import com.automattic.eventhorizon.SettingsNotificationsNewFeaturesAdvancedSettingsTappedEvent
-import com.automattic.eventhorizon.SettingsNotificationsNewFeaturesToggleEvent
-import com.automattic.eventhorizon.SettingsNotificationsOffersAdvancedSettingsTappedEvent
-import com.automattic.eventhorizon.SettingsNotificationsOffersToggleEvent
 import com.automattic.eventhorizon.SettingsNotificationsPlayOverNotificationsToggledEvent
 import com.automattic.eventhorizon.SettingsNotificationsShownEvent
 import com.automattic.eventhorizon.SettingsNotificationsSoundChangedEvent
-import com.automattic.eventhorizon.SettingsNotificationsTrendingToggleEvent
 import com.automattic.eventhorizon.SettingsNotificationsVibrationChangedEvent
-import com.automattic.eventhorizon.SettingsTrendingAdvancedSettingsTappedEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -148,60 +142,6 @@ internal class NotificationsSettingsViewModel @Inject constructor(
 
                 is NotificationPreferenceType.DailyReminderSettings -> {
                     eventHorizon.track(SettingsDailyRemindersAdvancedSettingsTappedEvent)
-                }
-
-                is NotificationPreferenceType.EnableRecommendations -> {
-                    preferenceRepository.setPreference(preference)
-                    eventHorizon.track(
-                        SettingsNotificationsTrendingToggleEvent(
-                            enabled = preference.isEnabled,
-                        ),
-                    )
-                    if (preference.isEnabled) {
-                        notificationScheduler.setupTrendingAndRecommendationsNotifications()
-                    } else {
-                        notificationScheduler.cancelScheduledTrendingAndRecommendationsNotifications()
-                    }
-                }
-
-                is NotificationPreferenceType.RecommendationSettings -> {
-                    eventHorizon.track(SettingsTrendingAdvancedSettingsTappedEvent)
-                }
-
-                is NotificationPreferenceType.EnableNewFeaturesAndTips -> {
-                    preferenceRepository.setPreference(preference)
-                    eventHorizon.track(
-                        SettingsNotificationsNewFeaturesToggleEvent(
-                            enabled = preference.isEnabled,
-                        ),
-                    )
-                    if (preference.isEnabled) {
-                        notificationScheduler.setupNewFeaturesAndTipsNotifications()
-                    } else {
-                        notificationScheduler.cancelScheduledNewFeaturesAndTipsNotifications()
-                    }
-                }
-
-                is NotificationPreferenceType.NewFeaturesAndTipsSettings -> {
-                    eventHorizon.track(SettingsNotificationsNewFeaturesAdvancedSettingsTappedEvent)
-                }
-
-                is NotificationPreferenceType.EnableOffers -> {
-                    preferenceRepository.setPreference(preference)
-                    eventHorizon.track(
-                        SettingsNotificationsOffersToggleEvent(
-                            enabled = preference.isEnabled,
-                        ),
-                    )
-                    if (preference.isEnabled) {
-                        notificationScheduler.setupOffersNotifications()
-                    } else {
-                        notificationScheduler.cancelScheduledOffersNotifications()
-                    }
-                }
-
-                is NotificationPreferenceType.OffersSettings -> {
-                    eventHorizon.track(SettingsNotificationsOffersAdvancedSettingsTappedEvent)
                 }
 
                 is NotificationPreferenceType.NotifyOnThesePodcasts -> Unit

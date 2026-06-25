@@ -7,7 +7,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rxjava2.subscribeAsState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -17,7 +16,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import au.com.shiftyjelly.pocketcasts.compose.AppThemeWithBackground
 import au.com.shiftyjelly.pocketcasts.compose.extensions.contentWithoutConsumedInsets
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
-import au.com.shiftyjelly.pocketcasts.repositories.user.UserManager
 import au.com.shiftyjelly.pocketcasts.ui.helper.FragmentHostListener
 import au.com.shiftyjelly.pocketcasts.utils.SystemBatteryRestrictions
 import au.com.shiftyjelly.pocketcasts.utils.extensions.pxToDp
@@ -27,9 +25,6 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class SettingsFragment : BaseFragment() {
-
-    @Inject
-    lateinit var userManager: UserManager
 
     @Inject
     lateinit var batteryRestrictions: SystemBatteryRestrictions
@@ -57,25 +52,18 @@ class SettingsFragment : BaseFragment() {
                 }
             }
 
-            userManager
-                .getSignInState()
-                .subscribeAsState(null)
-                .value
-                ?.let { signInState ->
-                    val bottomInset = settings.bottomInset.collectAsStateWithLifecycle(0)
-                    SettingsFragmentPage(
-                        signInState = signInState,
-                        onBackPress = {
-                            activity?.onBackPressedDispatcher?.onBackPressed()
-                        },
-                        isDebug = BuildConfig.DEBUG || BuildConfig.IS_PROTOTYPE,
-                        isUnrestrictedBattery = isUnrestrictedBattery,
-                        openFragment = { fragment ->
-                            (activity as? FragmentHostListener)?.addFragment(fragment)
-                        },
-                        bottomInset = bottomInset.value.pxToDp(LocalContext.current).dp,
-                    )
-                }
+            val bottomInset = settings.bottomInset.collectAsStateWithLifecycle(0)
+            SettingsFragmentPage(
+                onBackPress = {
+                    activity?.onBackPressedDispatcher?.onBackPressed()
+                },
+                isDebug = BuildConfig.DEBUG || BuildConfig.IS_PROTOTYPE,
+                isUnrestrictedBattery = isUnrestrictedBattery,
+                openFragment = { fragment ->
+                    (activity as? FragmentHostListener)?.addFragment(fragment)
+                },
+                bottomInset = bottomInset.value.pxToDp(LocalContext.current).dp,
+            )
         }
     }
 }

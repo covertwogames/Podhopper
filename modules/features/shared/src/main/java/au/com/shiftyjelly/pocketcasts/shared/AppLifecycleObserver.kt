@@ -76,7 +76,12 @@ class AppLifecycleObserver(
         networkConnectionWatcher.startWatching()
         applicationScope.launch {
             notificationScheduler.setupReEngagementNotification()
-            notificationScheduler.setupTrendingAndRecommendationsNotifications()
+            // PodHopper: the promotional notification categories (Recommendations, New features,
+            // Offers) were removed from settings. Never schedule them, and cancel any that an
+            // earlier build may have scheduled so existing installs self heal on next launch.
+            notificationScheduler.cancelScheduledTrendingAndRecommendationsNotifications()
+            notificationScheduler.cancelScheduledNewFeaturesAndTipsNotifications()
+            notificationScheduler.cancelScheduledOffersNotifications()
         }
     }
 
@@ -148,12 +153,11 @@ class AppLifecycleObserver(
                         settings.autoDownloadOnFollowPodcast.set(true, updateModifiedAt = false)
                     }
 
-                    // For new users we want to enable all notifications by default
+                    // For new users we enable new episode and daily reminder notifications by default.
+                    // The promotional categories (Recommendations, New features, Offers) were removed
+                    // from PodHopper, so they are intentionally left at their false default.
                     settings.notifyRefreshPodcast.set(true, updateModifiedAt = false)
                     settings.dailyRemindersNotification.set(true, updateModifiedAt = false)
-                    settings.recommendationsNotification.set(true, updateModifiedAt = false)
-                    settings.newFeaturesNotification.set(true, updateModifiedAt = false)
-                    settings.offersNotification.set(true, updateModifiedAt = false)
 
                     notificationScheduler.setupOnboardingNotifications()
                 }

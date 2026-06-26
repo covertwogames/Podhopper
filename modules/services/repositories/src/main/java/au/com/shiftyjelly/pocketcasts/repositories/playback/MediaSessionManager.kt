@@ -115,7 +115,7 @@ class MediaSessionManager(
         }
     }
 
-    // Evaluated lazily on first access — must not be read before FeatureFlag.initialize().
+    // Evaluated lazily on first access, must not be read before FeatureFlag.initialize().
     // In practice the first access is in startObserving(), which runs after FeatureFlag init.
     // Toggling requires a process restart; swapping at runtime is not supported.
     private val useMedia3Session by lazy {
@@ -460,7 +460,7 @@ class MediaSessionManager(
      * Installs a [CastStatePlayer] into the Media3 session without ForwardingPlayer
      * callbacks. CastStatePlayer already delegates transport commands (play, pause, seek,
      * stop) to PlaybackManager via its own callbacks, so the ForwardingPlayer must NOT
-     * also have callbacks — otherwise every command fires twice.
+     * also have callbacks, otherwise every command fires twice.
      */
     @OptIn(UnstableApi::class)
     @MainThread
@@ -515,7 +515,7 @@ class MediaSessionManager(
                 val showArtwork = settings.showArtworkOnLockScreen.value
                 val useEpisodeArtwork = settings.artworkConfiguration.value.useEpisodeArtwork
                 val artworkData = if (showArtwork && !Util.isWearOs(context) && !Util.isAutomotive(context)) {
-                    AutoConverter.getPodcastArtworkBitmap(episode, context, useEpisodeArtwork)?.let { bitmap ->
+                    AutoConverter.getPodcastArtworkBitmap(episode, podcast, context, useEpisodeArtwork)?.let { bitmap ->
                         java.io.ByteArrayOutputStream().use { stream ->
                             val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                                 android.graphics.Bitmap.CompressFormat.WEBP_LOSSY
@@ -618,6 +618,7 @@ class MediaSessionManager(
                 val artworkData = if (showArtwork && !Util.isWearOs(context) && !Util.isAutomotive(context)) {
                     AutoConverter.getPodcastArtworkBitmap(
                         episode,
+                        podcast,
                         context,
                         useEpisodeArtwork,
                     )?.let { bitmap ->
@@ -684,6 +685,21 @@ class MediaSessionManager(
                     media3Session?.notifyChildrenChanged(UP_NEXT_ROOT, Int.MAX_VALUE, null)
                 },
                 onError = { Timber.e(it, "Error observing Up Next changes") },
+            )
+            .addTo(disposables)
+
+        // PodHopper: refresh the Auto/AAOS podcasts list when subscriptions change (a tap-to-subscribe in
+        // the car, a subscribe on the phone, or a cross-device sync) so the new show appears without a
+        // reconnect. Android Auto caches each browse node until told its contents changed.
+        podcastManager.podcastSubscriptionsRxFlowable()
+            .distinctUntilChanged()
+            .observeOn(Schedulers.io())
+            .subscribeBy(
+                onNext = {
+                    media3Session?.notifyChildrenChanged(PODCASTS_ROOT, Int.MAX_VALUE, null)
+                    media3Session?.notifyChildrenChanged(MEDIA_ID_ROOT, Int.MAX_VALUE, null)
+                },
+                onError = { Timber.e(it, "Error observing podcast subscription changes") },
             )
             .addTo(disposables)
     }
@@ -1102,7 +1118,7 @@ class MediaSessionManager(
             if (Util.isAutomotive(context)) nowPlayingBuilder = nowPlayingBuilder.putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON_URI, bitmapUri)
 
             if (!Util.isWearOs(context) && !Util.isAutomotive(context)) {
-                AutoConverter.getPodcastArtworkBitmap(episode, context, useEpisodeArtwork)?.let { bitmap ->
+                AutoConverter.getPodcastArtworkBitmap(episode, podcast, context, useEpisodeArtwork)?.let { bitmap ->
                     nowPlayingBuilder = nowPlayingBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, bitmap)
                 }
             }

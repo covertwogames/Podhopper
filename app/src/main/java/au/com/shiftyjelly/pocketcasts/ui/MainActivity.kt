@@ -67,7 +67,6 @@ import au.com.shiftyjelly.pocketcasts.account.onboarding.OnboardingActivityContr
 import au.com.shiftyjelly.pocketcasts.account.onboarding.podhopper.PodHopperOnboardingActivity
 import au.com.shiftyjelly.pocketcasts.account.watchsync.WatchSync
 import au.com.shiftyjelly.pocketcasts.analytics.SourceView
-import au.com.shiftyjelly.pocketcasts.appreview.AppReviewDialogFragment
 import au.com.shiftyjelly.pocketcasts.compose.AppTheme
 import au.com.shiftyjelly.pocketcasts.compose.components.AnimatedNonNullVisibility
 import au.com.shiftyjelly.pocketcasts.compose.components.PlaybackErrorInfoBar
@@ -146,7 +145,6 @@ import au.com.shiftyjelly.pocketcasts.podcasts.view.podcast.PodcastFragment
 import au.com.shiftyjelly.pocketcasts.podcasts.view.podcasts.PodcastsFragment
 import au.com.shiftyjelly.pocketcasts.podcasts.view.share.ShareListIncomingFragment
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
-import au.com.shiftyjelly.pocketcasts.preferences.model.AppReviewReason
 import au.com.shiftyjelly.pocketcasts.profile.ProfileFragment
 import au.com.shiftyjelly.pocketcasts.profile.SubCancelledFragment
 import au.com.shiftyjelly.pocketcasts.profile.TrialFinishedFragment
@@ -191,8 +189,6 @@ import au.com.shiftyjelly.pocketcasts.ui.helper.StatusBarIconColor
 import au.com.shiftyjelly.pocketcasts.ui.theme.Theme
 import au.com.shiftyjelly.pocketcasts.utils.Network
 import au.com.shiftyjelly.pocketcasts.utils.Util
-import au.com.shiftyjelly.pocketcasts.utils.featureflag.Feature
-import au.com.shiftyjelly.pocketcasts.utils.featureflag.FeatureFlag
 import au.com.shiftyjelly.pocketcasts.utils.log.LogBuffer
 import au.com.shiftyjelly.pocketcasts.utils.observeOnce
 import au.com.shiftyjelly.pocketcasts.view.LockableBottomSheetBehavior
@@ -2091,10 +2087,8 @@ class MainActivity :
                 .flowWithLifecycle(lifecycle, Lifecycle.State.RESUMED)
                 .onStart { delay(3.seconds) } // Do not blast user with a review immediately on start
                 .collect { signal ->
-                    if (canDisplayAppRatingsPrompt(signal.reason)) {
-                        AppReviewDialogFragment
-                            .newInstance(signal.reason, signal.reviewInfo)
-                            .show(supportFragmentManager, "app_review_prompt")
+                    if (canDisplayAppRatingsPrompt()) {
+                        appReviewManager.launchReview(this@MainActivity, signal.reviewInfo)
                         signal.consume()
                     } else {
                         signal.ignore()
@@ -2103,18 +2097,15 @@ class MainActivity :
         }
     }
 
-    private fun canDisplayAppRatingsPrompt(reason: AppReviewReason): Boolean {
-        return reason == AppReviewReason.DevelopmentTrigger || (
-            FeatureFlag.isEnabled(Feature.IMPROVE_APP_RATINGS) &&
-                !binding.root.wasTouchedInLast(2.seconds) &&
-                frameBottomSheetBehavior.state == BottomSheetBehavior.STATE_COLLAPSED &&
-                !viewModel.shouldShowStoriesModal.value &&
-                !binding.playerBottomSheet.isPlayerOpen &&
-                isAtRootOfStack() &&
-                isNoDialogShown() &&
-                areChildrenAtRootOfStack() &&
-                isNoChildDialogShown()
-            )
+    private fun canDisplayAppRatingsPrompt(): Boolean {
+        return !binding.root.wasTouchedInLast(2.seconds) &&
+            frameBottomSheetBehavior.state == BottomSheetBehavior.STATE_COLLAPSED &&
+            !viewModel.shouldShowStoriesModal.value &&
+            !binding.playerBottomSheet.isPlayerOpen &&
+            isAtRootOfStack() &&
+            isNoDialogShown() &&
+            areChildrenAtRootOfStack() &&
+            isNoChildDialogShown()
     }
 
     private fun isAtRootOfStack(): Boolean {

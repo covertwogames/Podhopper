@@ -174,7 +174,7 @@ object AutoConverter {
         return getArtworkUriForContentProvider(artworkUri, context)
     }
 
-    fun getPodcastArtworkBitmap(episode: BaseEpisode, context: Context, useEpisodeArtwork: Boolean): Bitmap? {
+    fun getPodcastArtworkBitmap(episode: BaseEpisode, podcast: Podcast?, context: Context, useEpisodeArtwork: Boolean): Bitmap? {
         val imageRequestFactory = PocketCastsImageRequestFactory(
             context,
             isDarkTheme = true,
@@ -182,7 +182,20 @@ object AutoConverter {
             placeholderType = PocketCastsImageRequestFactory.PlaceholderType.Small,
         )
 
-        val request = imageRequestFactory.create(episode, useEpisodeArtwork)
+        // PodHopper: replicate the phone (create(podcast)) and the AntennaPod fork (feed image url). Use
+        // the episode's own image when enabled, otherwise the podcast's real feed artwork (thumbnail_url),
+        // never the catalog-by-uuid url that 404s for feed podcasts. create(podcast) already prefers
+        // thumbnail_url, so route the podcast fallback through it instead of the episode request.
+        val request = when {
+            episode is PodcastEpisode && useEpisodeArtwork && !episode.imageUrl.isNullOrBlank() ->
+                imageRequestFactory.create(episode, useEpisodeArtwork)
+
+            podcast != null ->
+                imageRequestFactory.create(podcast)
+
+            else ->
+                imageRequestFactory.create(episode, useEpisodeArtwork)
+        }
         return context.imageLoader.executeBlocking(request).image?.toBitmap() ?: loadPlaceholderBitmap(imageRequestFactory, context)
     }
 

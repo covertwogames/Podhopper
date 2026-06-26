@@ -637,6 +637,7 @@ interface Settings {
     val appReviewEndOfYearCompletedTimestamp: ReadWriteSetting<Instant?>
     val appReviewSubmittedReasons: ReadWriteSetting<List<AppReviewReason>>
     val appReviewLastPromptTimestamp: ReadWriteSetting<Instant?>
+    val appReviewPromptCount: UserSetting<Int>
     val appReviewLastDeclineTimestamps: ReadWriteSetting<List<Instant>>
     val appReviewCrashTimestamp: ReadWriteSetting<Instant?>
     val appReviewErrorSessionIds: ReadSetting<List<String>>

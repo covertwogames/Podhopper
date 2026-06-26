@@ -1805,6 +1805,12 @@ class SettingsImpl @Inject constructor(
         sharedPrefs = sharedPreferences,
     )
 
+    override val appReviewPromptCount = UserSetting.IntPref(
+        sharedPrefKey = "app_review_prompt_count",
+        defaultValue = 0,
+        sharedPrefs = sharedPreferences,
+    )
+
     override val appReviewLastDeclineTimestamps = UserSetting.PrefListFromString(
         sharedPrefKey = "app_review_last_decline_timestamps",
         defaultValue = emptyList(),

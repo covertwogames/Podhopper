@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import au.com.shiftyjelly.pocketcasts.analytics.SourceView
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
-import au.com.shiftyjelly.pocketcasts.preferences.model.AppReviewReason
 import au.com.shiftyjelly.pocketcasts.repositories.appreview.AppReviewManagerImpl
 import au.com.shiftyjelly.pocketcasts.repositories.download.UpdateEpisodeDetailsTask
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackIssue
@@ -189,7 +188,7 @@ class DeveloperViewModel
     fun showAppReviewPrompt() {
         viewModelScope.launch {
             val reviewInfo = reviewManager.requestReview()
-            appReviewManagerImpl.triggerPrompt(AppReviewReason.DevelopmentTrigger, reviewInfo)
+            appReviewManagerImpl.triggerPrompt(reviewInfo)
         }
     }
 
@@ -229,6 +228,7 @@ class DeveloperViewModel
             appReviewEndOfYearSharedTimestamp.set(null, updateModifiedAt = false)
             appReviewEndOfYearCompletedTimestamp.set(null, updateModifiedAt = false)
             appReviewLastPromptTimestamp.set(null, updateModifiedAt = false)
+            appReviewPromptCount.set(0, updateModifiedAt = false)
             appReviewLastDeclineTimestamps.set(emptyList(), updateModifiedAt = false)
             appReviewCrashTimestamp.set(null, updateModifiedAt = false)
             appReviewSubmittedReasons.set(emptyList(), updateModifiedAt = false)

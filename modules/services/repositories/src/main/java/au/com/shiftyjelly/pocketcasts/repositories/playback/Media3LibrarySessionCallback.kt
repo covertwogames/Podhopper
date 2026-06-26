@@ -57,7 +57,7 @@ internal class Media3LibrarySessionCallback(
         controller: MediaSession.ControllerInfo,
     ): MediaSession.ConnectionResult {
         if (packageValidator != null && !packageValidator.isKnownCaller(controller.packageName, controller.uid)) {
-            // Unknown callers (e.g., Tasker, Automate) get transport controls only — no library
+            // Unknown callers (e.g., Tasker, Automate) get transport controls only, no library
             // browsing or custom commands. This matches the legacy MediaBrowserServiceCompat
             // behavior where onGetRoot() returned null for unknown callers but transport
             // controls via MediaControllerCompat still worked independently.
@@ -188,6 +188,32 @@ internal class Media3LibrarySessionCallback(
             .build()
 
         return Futures.immediateFuture(LibraryResult.ofItem(rootItem, responseParams))
+    }
+
+    // PodHopper: media3's default onSubscribe accepts a browse subscription only if onGetItem returns a
+    // browsable item for the parent id. With no onGetItem override the default returns
+    // ERROR_NOT_SUPPORTED, so the session rejects and removes every Android Auto browse subscription,
+    // and notifyChildrenChanged then silently no-ops because it only delivers to controllers that are
+    // still subscribed. That is why subscribing or unsubscribing never refreshed the car's podcast
+    // list. Browse node ids (the roots, podcast ids, folders) never contain the AutoMediaId divider
+    // "#"; only episode media ids do (they are built as "sourceId#episodeId"), so classify on that and
+    // return a browsable item for browse nodes so the subscription is kept.
+    override fun onGetItem(
+        session: MediaLibraryService.MediaLibrarySession,
+        browser: MediaSession.ControllerInfo,
+        mediaId: String,
+    ): ListenableFuture<LibraryResult<MediaItem>> {
+        val isEpisode = mediaId.contains("#")
+        val item = MediaItem.Builder()
+            .setMediaId(mediaId)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setIsBrowsable(!isEpisode)
+                    .setIsPlayable(isEpisode)
+                    .build(),
+            )
+            .build()
+        return Futures.immediateFuture(LibraryResult.ofItem(item, null))
     }
 
     override fun onGetChildren(

@@ -10,6 +10,7 @@ import au.com.shiftyjelly.pocketcasts.coroutines.di.ApplicationScope
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.repositories.ads.BlazeAdsManager
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationScheduler
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperPositionSync
 import au.com.shiftyjelly.pocketcasts.utils.AppPlatform
 import au.com.shiftyjelly.pocketcasts.utils.Util
 import au.com.shiftyjelly.pocketcasts.utils.featureflag.FeatureFlag
@@ -37,6 +38,7 @@ class AppLifecycleObserver(
     private val preferencesFeatureProvider: PreferencesFeatureProvider,
     private val settings: Settings,
     private val notificationScheduler: NotificationScheduler,
+    private val podHopperPositionSync: PodHopperPositionSync,
 ) : DefaultLifecycleObserver {
 
     @Inject
@@ -52,6 +54,7 @@ class AppLifecycleObserver(
         preferencesFeatureProvider: PreferencesFeatureProvider,
         settings: Settings,
         notificationScheduler: NotificationScheduler,
+        podHopperPositionSync: PodHopperPositionSync,
     ) : this(
         appContext = appContext,
         applicationScope = applicationScope,
@@ -66,6 +69,7 @@ class AppLifecycleObserver(
         preferencesFeatureProvider = preferencesFeatureProvider,
         settings = settings,
         notificationScheduler = notificationScheduler,
+        podHopperPositionSync = podHopperPositionSync,
     )
 
     fun setup() {
@@ -87,6 +91,9 @@ class AppLifecycleObserver(
 
     override fun onStart(owner: LifecycleOwner) {
         super.onStart(owner)
+        // PodHopper: pull the latest cross-device playback positions when the app comes to the
+        // foreground, so opening the app reflects progress made on other devices.
+        podHopperPositionSync.pullLatestPositions()
         applicationScope.launch {
             blazeAdsManager.updateAds()
         }

@@ -35,6 +35,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.FolderManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperPositionSync
 import au.com.shiftyjelly.pocketcasts.repositories.user.UserManager
 import au.com.shiftyjelly.pocketcasts.settings.util.TextResource
 import au.com.shiftyjelly.pocketcasts.ui.theme.Theme
@@ -110,6 +111,7 @@ class PodcastViewModel @Inject constructor(
     private val settings: Settings,
     private val podcastAndEpisodeDetailsCoordinator: PodcastAndEpisodeDetailsCoordinator,
     private val notificationHelper: NotificationHelper,
+    private val podHopperPositionSync: PodHopperPositionSync,
     @ApplicationScope private val applicationScope: CoroutineScope,
 ) : ViewModel(),
     CoroutineScope {
@@ -147,6 +149,9 @@ class PodcastViewModel @Inject constructor(
 
     fun loadPodcast(uuid: String, resources: Resources) {
         this@PodcastViewModel.podcastUuid = uuid
+        // PodHopper: pull the latest cross-device playback positions when a podcast's episode list
+        // is opened, so its episodes reflect progress made on other devices.
+        podHopperPositionSync.pullLatestPositions()
         val episodeSearchResults = episodeSearchHandler.getSearchResultsObservable(uuid)
         val bookmarkSearchResults = bookmarkSearchHandler.getSearchResultsObservable(uuid)
 

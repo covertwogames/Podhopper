@@ -93,9 +93,9 @@ object AutoConverter {
             .build()
     }
 
-    fun convertPodcastToMediaItem(podcast: Podcast, context: Context, useEpisodeArtwork: Boolean): MediaItem? {
+    fun convertPodcastToMediaItem(podcast: Podcast, context: Context, useEpisodeArtwork: Boolean, artworkUrlOverride: String? = null): MediaItem? {
         return try {
-            val localUri = getPodcastArtworkUri(podcast = podcast, episode = null, context = context, useEpisodeArtwork = useEpisodeArtwork)
+            val localUri = getPodcastArtworkUri(podcast = podcast, episode = null, context = context, useEpisodeArtwork = useEpisodeArtwork, artworkUrlOverride = artworkUrlOverride)
 
             val metadata = MediaMetadata.Builder()
                 .setTitle(podcast.title)
@@ -147,8 +147,8 @@ object AutoConverter {
             .build()
     }
 
-    fun getPodcastArtworkUri(podcast: Podcast?, episode: BaseEpisode?, context: Context, useEpisodeArtwork: Boolean): Uri? {
-        val artworkUri = when (episode) {
+    fun getPodcastArtworkUri(podcast: Podcast?, episode: BaseEpisode?, context: Context, useEpisodeArtwork: Boolean, artworkUrlOverride: String? = null): Uri? {
+        val artworkUrl = artworkUrlOverride?.takeIf { it.isNotBlank() } ?: when (episode) {
             is PodcastEpisode -> if (useEpisodeArtwork) {
                 episode.imageUrl ?: EpisodeFileMetadata.artworkCacheFile(context, episode.uuid).takeIf(File::exists)?.path ?: podcast?.getArtworkUrl(480)
             } else {
@@ -164,7 +164,8 @@ object AutoConverter {
             null -> {
                 podcast?.getArtworkUrl(480)
             }
-        }?.toUri()
+        }
+        val artworkUri = artworkUrl?.toUri()
 
         if (artworkUri == null) {
             return null

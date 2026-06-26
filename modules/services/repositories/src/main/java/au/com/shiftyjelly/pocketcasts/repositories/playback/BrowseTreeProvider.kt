@@ -30,14 +30,15 @@ import au.com.shiftyjelly.pocketcasts.repositories.playlist.Playlist
 import au.com.shiftyjelly.pocketcasts.repositories.playlist.PlaylistManager
 import au.com.shiftyjelly.pocketcasts.repositories.playlist.PlaylistPreview
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
+import au.com.shiftyjelly.pocketcasts.repositories.podcast.FeedParser
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.FolderManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.UserEpisodeManager
-import au.com.shiftyjelly.pocketcasts.servers.ServiceManager
 import au.com.shiftyjelly.pocketcasts.servers.model.DisplayStyle
 import au.com.shiftyjelly.pocketcasts.servers.model.ListType
 import au.com.shiftyjelly.pocketcasts.servers.model.transformWithRegion
 import au.com.shiftyjelly.pocketcasts.utils.Util
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.first
@@ -67,10 +68,15 @@ class BrowseTreeProvider @Inject constructor(
     private val playlistManager: PlaylistManager,
     private val upNextQueue: UpNextQueue,
     private val settings: Settings,
-    private val serviceManager: ServiceManager,
     private val listRepository: ListRepository,
     private val improvedSearchManager: ImprovedSearchManager,
+    private val feedParser: FeedParser,
 ) {
+
+    // PodHopper: maps an Android Auto search result's media id (the feed's own uuid) to its rss feed
+    // url, so that tapping an unsubscribed result can pull and parse the feed on-device. Lives on this
+    // singleton for the life of the process, which spans the search-then-tap sequence.
+    private val searchFeedUrls = ConcurrentHashMap<String, String>()
 
     fun getRootId(isRecent: Boolean, isSuggested: Boolean, hasCurrentEpisode: Boolean): String? {
         return when {
@@ -315,8 +321,19 @@ class BrowseTreeProvider @Inject constructor(
                 }
             }
         } else {
-            val podcastFound = podcastManager.findPodcastByUuid(parentId)
-                ?: podcastManager.findOrDownloadPodcastRxSingle(parentId).toMaybe().onErrorComplete().awaitSingleOrNull()
+            var podcastFound = podcastManager.findPodcastByUuid(parentId)
+            if (podcastFound == null) {
+                val feedUrl = searchFeedUrls[parentId]
+                podcastFound = if (feedUrl != null) {
+                    // PodHopper: a tapped Android Auto search result has no local podcast yet. Pull and
+                    // parse its feed on-device (which subscribes and stores it with this same uuid), then
+                    // load it, so the car shows the show's episodes instead of an empty list.
+                    podcastManager.subscribeToFeedUrl(feedUrl)
+                    podcastManager.findPodcastByUuid(parentId)
+                } else {
+                    podcastManager.findOrDownloadPodcastRxSingle(parentId).toMaybe().onErrorComplete().awaitSingleOrNull()
+                }
+            }
             podcastFound?.let { podcast ->
                 val episodes = episodeManager
                     .findEpisodesByPodcastOrderedBlocking(podcast)
@@ -523,15 +540,24 @@ class BrowseTreeProvider @Inject constructor(
             } else {
                 // PodHopper: search the iTunes directory for new podcasts instead of the Pocket Casts
                 // search server, mirroring the in-app search path. Each result maps to a feed-backed
-                // podcast carrying its own rss feed url.
+                // podcast carrying its own rss feed url. We key the media item by the feed's own uuid
+                // (the same id it will have once subscribed) and remember its feed url so a tap can
+                // pull the feed on-device. The iTunes image url rides on thumbnailUrl so the browse
+                // row shows real artwork instead of a placeholder.
                 improvedSearchManager.combinedSearch(termCleaned)
                     .filterIsInstance<ImprovedSearchResultItem.PodcastItem>()
                     .map { item ->
+                        val feedUrl = item.feedUrl
+                        val resultUuid = if (feedUrl != null) feedParser.podcastUuidForFeed(feedUrl) else item.uuid
+                        if (feedUrl != null) {
+                            searchFeedUrls[resultUuid] = feedUrl
+                        }
                         Podcast(
-                            uuid = item.uuid,
+                            uuid = resultUuid,
                             title = item.title,
                             author = item.author,
-                            podcastUrl = item.feedUrl,
+                            podcastUrl = feedUrl,
+                            thumbnailUrl = item.imageUrl,
                         )
                     }
             }
@@ -548,6 +574,7 @@ class BrowseTreeProvider @Inject constructor(
                 context = context,
                 podcast = podcast,
                 useEpisodeArtwork = settings.artworkConfiguration.value.useEpisodeArtwork,
+                artworkUrlOverride = if (searchFeedUrls.containsKey(podcast.uuid)) podcast.thumbnailUrl else null,
             )
         }
     }

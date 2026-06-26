@@ -18,6 +18,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.podcast.UserEpisodeManager
 import au.com.shiftyjelly.pocketcasts.views.dialog.ShareDialogFactory
 import au.com.shiftyjelly.pocketcasts.views.helper.CloudDeleteHelper
 import au.com.shiftyjelly.pocketcasts.views.helper.DeleteState
+import au.com.shiftyjelly.pocketcasts.views.helper.PlainShare
 import com.automattic.eventhorizon.EpisodeDeletedFromCloudEvent
 import com.automattic.eventhorizon.EpisodeRemovedFromListEvent
 import com.automattic.eventhorizon.EpisodeSwipeActionPerformedEvent
@@ -137,9 +138,7 @@ class SwipeActionViewModel @AssistedInject constructor(
         val episode = episodeManager.findEpisodeByUuid(episodeUuid) as? PodcastEpisode ?: return
         val podcast = podcastManager.findPodcastByUuid(episode.podcastUuid) ?: return
 
-        shareDialogFactory
-            .shareEpisode(podcast, episode, swipeSource.toSourceView())
-            .show(fragmentManager, "share_dialog")
+        PlainShare.shareEpisode(context, podcast, episode)
     }
 
     // This function is suspending because it needs FragmentManager.

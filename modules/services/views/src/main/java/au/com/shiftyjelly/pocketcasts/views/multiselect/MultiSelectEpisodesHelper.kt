@@ -7,7 +7,6 @@ import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.map
 import androidx.lifecycle.toLiveData
-import au.com.shiftyjelly.pocketcasts.analytics.SourceView
 import au.com.shiftyjelly.pocketcasts.coroutines.di.ApplicationScope
 import au.com.shiftyjelly.pocketcasts.localization.extensions.getStringPlural
 import au.com.shiftyjelly.pocketcasts.models.entity.BaseEpisode
@@ -29,6 +28,7 @@ import au.com.shiftyjelly.pocketcasts.views.dialog.ConfirmationDialog
 import au.com.shiftyjelly.pocketcasts.views.dialog.ShareDialogFactory
 import au.com.shiftyjelly.pocketcasts.views.helper.CloudDeleteHelper
 import au.com.shiftyjelly.pocketcasts.views.helper.DeleteState
+import au.com.shiftyjelly.pocketcasts.views.helper.PlainShare
 import au.com.shiftyjelly.pocketcasts.views.swipe.AddToPlaylistFragmentFactory
 import com.automattic.android.tracks.crashlogging.CrashLogging
 import com.automattic.eventhorizon.EpisodeBulkArchivedEvent
@@ -523,9 +523,8 @@ class MultiSelectEpisodesHelper @Inject constructor(
                 return@launch
             }
 
-            shareDialogFactory
-                .shareEpisode(podcast, episode, SourceView.MULTI_SELECT)
-                .show(fragmentManager, "share_dialog")
+            val context = context ?: return@launch
+            PlainShare.shareEpisode(context, podcast, episode)
         }
 
         closeMultiSelect()

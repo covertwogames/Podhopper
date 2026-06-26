@@ -115,7 +115,6 @@ import au.com.shiftyjelly.pocketcasts.podcasts.databinding.FragmentEpisodeBindin
 import au.com.shiftyjelly.pocketcasts.podcasts.view.episode.EpisodeFragmentViewModel.EpisodeContentTab
 import au.com.shiftyjelly.pocketcasts.podcasts.viewmodel.PodcastAndEpisodeDetailsCoordinator
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
-import au.com.shiftyjelly.pocketcasts.reimagine.ShareDialogFragment
 import au.com.shiftyjelly.pocketcasts.reimagine.timestamp.ShareEpisodeTimestampFragment
 import au.com.shiftyjelly.pocketcasts.repositories.images.PocketCastsImageRequestFactory
 import au.com.shiftyjelly.pocketcasts.repositories.images.loadInto
@@ -157,6 +156,7 @@ import au.com.shiftyjelly.pocketcasts.views.extensions.show
 import au.com.shiftyjelly.pocketcasts.views.fragments.BaseDialogFragment
 import au.com.shiftyjelly.pocketcasts.views.fragments.BaseFragment
 import au.com.shiftyjelly.pocketcasts.views.helper.IntentUtil
+import au.com.shiftyjelly.pocketcasts.views.helper.PlainShare
 import au.com.shiftyjelly.pocketcasts.views.helper.ShowNotesFormatter
 import au.com.shiftyjelly.pocketcasts.views.helper.WarningsHelper
 import au.com.shiftyjelly.pocketcasts.views.helper.setLongStyleDate
@@ -1396,12 +1396,7 @@ class EpisodeFragment : BaseFragment() {
 
     private fun share(state: EpisodeFragmentState.Loaded) {
         if (state.podcast.canShare) {
-            ShareDialogFragment.newInstance(
-                state.podcast,
-                state.episode,
-                SourceView.EPISODE_DETAILS,
-                options = listOf(ShareDialogFragment.Options.Episode),
-            ).show(parentFragmentManager, "share_dialog")
+            PlainShare.shareEpisode(requireContext(), state.podcast, state.episode)
         } else {
             Toast.makeText(context, LR.string.sharing_is_not_available_for_private_podcasts, Toast.LENGTH_LONG).show()
         }

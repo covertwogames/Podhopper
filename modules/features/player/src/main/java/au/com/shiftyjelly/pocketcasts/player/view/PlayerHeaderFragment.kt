@@ -111,7 +111,6 @@ import au.com.shiftyjelly.pocketcasts.player.viewmodel.PlayerViewModel
 import au.com.shiftyjelly.pocketcasts.player.viewmodel.ShelfSharedViewModel
 import au.com.shiftyjelly.pocketcasts.player.viewmodel.ShelfSharedViewModel.NavigationState
 import au.com.shiftyjelly.pocketcasts.player.viewmodel.ShelfSharedViewModel.SnackbarMessage
-import au.com.shiftyjelly.pocketcasts.reimagine.ShareDialogFragment
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackNoticeInfo
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackNoticeType
@@ -131,6 +130,7 @@ import au.com.shiftyjelly.pocketcasts.views.dialog.ConfirmationDialog
 import au.com.shiftyjelly.pocketcasts.views.dialog.ConfirmationDialog.ButtonType.Danger
 import au.com.shiftyjelly.pocketcasts.views.fragments.BaseFragment
 import au.com.shiftyjelly.pocketcasts.views.helper.CloudDeleteHelper
+import au.com.shiftyjelly.pocketcasts.views.helper.PlainShare
 import au.com.shiftyjelly.pocketcasts.views.helper.UiUtil
 import au.com.shiftyjelly.pocketcasts.views.helper.WarningsHelper
 import au.com.shiftyjelly.pocketcasts.views.swipe.AddToPlaylistFragmentFactory
@@ -350,9 +350,7 @@ class PlayerHeaderFragment :
                         }
 
                         is NavigationState.ShowShareDialog -> {
-                            ShareDialogFragment
-                                .newThemedInstance(navigationState.podcast, navigationState.episode, theme, SourceView.PLAYER)
-                                .show(parentFragmentManager, "share_dialog")
+                            PlainShare.shareEpisode(requireContext(), navigationState.podcast, navigationState.episode)
                         }
 
                         is NavigationState.ShowPodcast -> {

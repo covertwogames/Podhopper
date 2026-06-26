@@ -9,7 +9,6 @@ import au.com.shiftyjelly.pocketcasts.analytics.AnalyticsController
 import au.com.shiftyjelly.pocketcasts.analytics.experiments.ExperimentProvider
 import au.com.shiftyjelly.pocketcasts.coroutines.di.ApplicationScope
 import au.com.shiftyjelly.pocketcasts.crashlogging.InitializeRemoteLogging
-import au.com.shiftyjelly.pocketcasts.engage.EngageSdkBridge
 import au.com.shiftyjelly.pocketcasts.models.db.dao.UpNextDao
 import au.com.shiftyjelly.pocketcasts.models.type.EpisodeDownloadStatus
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
@@ -120,8 +119,6 @@ class PocketCastsApplication :
     @Inject lateinit var initializeRemoteLogging: InitializeRemoteLogging
 
     @Inject lateinit var databaseExportHelper: DatabaseExportHelper
-
-    @Inject lateinit var engageSdkBridge: EngageSdkBridge
 
     @Inject lateinit var experimentProvider: ExperimentProvider
 
@@ -289,7 +286,6 @@ class PocketCastsApplication :
         userEpisodeManager.monitorUploads(applicationContext)
         downloadStatusObserver.monitorDownloadStatus()
         userManager.beginMonitoringAccountManager(playbackManager)
-        engageSdkBridge.registerIntegration()
         shortcutsSynchronizer.keepShortcutsInSync()
         playlistInteractionNotifier.monitorPlaylistsInteraction()
         applicationScope.launch { appReviewManager.monitorAppReviewReasons() }

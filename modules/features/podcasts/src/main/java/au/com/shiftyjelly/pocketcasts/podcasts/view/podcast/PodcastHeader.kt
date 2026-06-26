@@ -470,15 +470,6 @@ private fun PodcastActions(
                     modifier = Modifier.size(32.dp),
                 )
                 ActionButton(
-                    iconId = folderIcon.id,
-                    contentDescription = stringResource(LR.string.podcast_change_folder),
-                    onClick = {
-                        if (!transition.isRunning) {
-                            onClickFolder()
-                        }
-                    },
-                )
-                ActionButton(
                     iconId = if (areNotificationsEnabled) IR.drawable.ic_notifications_on else IR.drawable.ic_notifications_off,
                     contentDescription = stringResource(LR.string.podcast_notifications),
                     modifier = Modifier.onGloballyPositioned { coordinates ->

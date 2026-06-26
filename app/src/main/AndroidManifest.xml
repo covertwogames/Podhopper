@@ -99,76 +99,6 @@
                         android:host="*"
                         android:scheme="pktc"/>
             </intent-filter>
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data
-                    android:host="pca.st"
-                    android:scheme="https"/>
-            </intent-filter>
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data
-                    android:host="pcast.pocketcasts.net"
-                    android:scheme="https"/>
-            </intent-filter>
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data
-                    android:host="play.pocketcasts.com"
-                    android:scheme="https"
-                    android:pathPrefix="/podcasts/" />
-            </intent-filter>
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data
-                    android:host="play.pocketcasts.net"
-                    android:scheme="https"
-                    android:pathPrefix="/podcasts/" />
-            </intent-filter>
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data
-                    android:host="pocketcasts.com"
-                    android:scheme="https"
-                    android:pathPrefix="/podcasts/" />
-            </intent-filter>
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data
-                    android:host="pocketcasts.net"
-                    android:scheme="https"
-                    android:pathPrefix="/podcasts/" />
-            </intent-filter>
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data
-                    android:host="pocket-casts-main-development.mystagingwebsite.com"
-                    android:scheme="https"
-                    android:pathPrefix="/redeem" />
-            </intent-filter>
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data
-                    android:host="pocketcasts.com"
-                    android:scheme="https"
-                    android:pathPrefix="/redeem" />
-            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -293,25 +223,6 @@
                 <data android:host="www.subscribeonandroid.com"/>
                 <data android:scheme="http"/>
                 <data android:scheme="https"/>
-            </intent-filter>
-
-            <!-- https://lists.pocketcasts.com/.well-known/assetlinks.json is needed for this to work -->
-            <intent-filter android:autoVerify="true" tools:ignore="UnusedAttribute">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="http" android:host="lists.pocketcasts.com"/>
-                <data android:scheme="https" android:host="lists.pocketcasts.com"/>
-            </intent-filter>
-
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https"/>
-                <data android:host="pocketcasts.com"/>
-                <data android:path="/get"/>
-                <data android:pathPrefix="/get/"/>
             </intent-filter>
 
             <intent-filter android:autoVerify="true">

@@ -679,10 +679,19 @@ class MediaSessionManager(
             .launchIn(scope)
 
         playbackManager.upNextQueue.changesObservable
-            .observeOn(Schedulers.io())
+            // PodHopper: session calls are confined to the main looper the session was built on.
+            .observeOn(AndroidSchedulers.mainThread())
             .subscribeBy(
                 onNext = {
-                    media3Session?.notifyChildrenChanged(UP_NEXT_ROOT, Int.MAX_VALUE, null)
+                    // PodHopper: same media3 #644 fix as the podcasts list above. The broadcast
+                    // notifyChildrenChanged overload does not reach connected legacy controllers (Android
+                    // Auto), so notify each connected controller explicitly; a controller not subscribed to
+                    // the node is a no-op.
+                    media3Session?.let { session ->
+                        session.connectedControllers.forEach { controller ->
+                            session.notifyChildrenChanged(controller, UP_NEXT_ROOT, Int.MAX_VALUE, null)
+                        }
+                    }
                 },
                 onError = { Timber.e(it, "Error observing Up Next changes") },
             )

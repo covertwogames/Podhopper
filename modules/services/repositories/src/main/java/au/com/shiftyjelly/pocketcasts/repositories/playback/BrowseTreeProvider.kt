@@ -321,18 +321,20 @@ class BrowseTreeProvider @Inject constructor(
                 }
             }
         } else {
-            var podcastFound = podcastManager.findPodcastByUuid(parentId)
-            if (podcastFound == null) {
-                val feedUrl = searchFeedUrls[parentId]
-                podcastFound = if (feedUrl != null) {
-                    // PodHopper: a tapped Android Auto search result has no local podcast yet. Pull and
-                    // parse its feed on-device (which subscribes and stores it with this same uuid), then
-                    // load it, so the car shows the show's episodes instead of an empty list.
-                    podcastManager.subscribeToFeedUrl(feedUrl)
-                    podcastManager.findPodcastByUuid(parentId)
-                } else {
-                    podcastManager.findOrDownloadPodcastRxSingle(parentId).toMaybe().onErrorComplete().awaitSingleOrNull()
-                }
+            // PodHopper: mirror the phone's onSubscribeToPodcast. On the phone, tapping an iTunes search
+            // result subscribes through the feed engine unconditionally, whether or not the show already
+            // exists locally. The Android Auto browse must do the same. We key off the feed url stored for
+            // this result at search time: if we have one, subscribe before loading instead of gating on
+            // "not already in the database". subscribeToFeedUrl is idempotent (it re-subscribes an existing
+            // show, or parses and inserts a new one), so the tapped show always lands in the podcasts list
+            // and syncs, rather than only previewing when it is already present unsubscribed.
+            val feedUrl = searchFeedUrls[parentId]
+            val podcastFound = if (feedUrl != null) {
+                podcastManager.subscribeToFeedUrl(feedUrl)
+                podcastManager.findPodcastByUuid(parentId)
+            } else {
+                podcastManager.findPodcastByUuid(parentId)
+                    ?: podcastManager.findOrDownloadPodcastRxSingle(parentId).toMaybe().onErrorComplete().awaitSingleOrNull()
             }
             podcastFound?.let { podcast ->
                 val episodes = episodeManager

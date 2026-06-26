@@ -693,11 +693,22 @@ class MediaSessionManager(
         // reconnect. Android Auto caches each browse node until told its contents changed.
         podcastManager.podcastSubscriptionsRxFlowable()
             .distinctUntilChanged()
-            .observeOn(Schedulers.io())
+            // PodHopper: session calls are confined to the main looper the session was built on.
+            .observeOn(AndroidSchedulers.mainThread())
             .subscribeBy(
                 onNext = {
-                    media3Session?.notifyChildrenChanged(PODCASTS_ROOT, Int.MAX_VALUE, null)
-                    media3Session?.notifyChildrenChanged(MEDIA_ID_ROOT, Int.MAX_VALUE, null)
+                    // PodHopper: the broadcast notifyChildrenChanged(parentId, count, params) overload has a
+                    // media3 bug (androidx/media #644, confirmed by the maintainer) where it does not notify
+                    // connected LEGACY controllers. Android Auto is a legacy controller, so the car only
+                    // refreshed its podcasts list on a reconnect. The fix is to notify each connected
+                    // controller explicitly with the per-controller overload; a controller not subscribed to
+                    // the node is a no-op, so iterating every connected controller is safe.
+                    media3Session?.let { session ->
+                        session.connectedControllers.forEach { controller ->
+                            session.notifyChildrenChanged(controller, PODCASTS_ROOT, Int.MAX_VALUE, null)
+                            session.notifyChildrenChanged(controller, MEDIA_ID_ROOT, Int.MAX_VALUE, null)
+                        }
+                    }
                 },
                 onError = { Timber.e(it, "Error observing podcast subscription changes") },
             )

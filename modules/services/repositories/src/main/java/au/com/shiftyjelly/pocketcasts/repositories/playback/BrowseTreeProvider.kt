@@ -77,6 +77,7 @@ class BrowseTreeProvider @Inject constructor(
     // url, so that tapping an unsubscribed result can pull and parse the feed on-device. Lives on this
     // singleton for the life of the process, which spans the search-then-tap sequence.
     private val searchFeedUrls = ConcurrentHashMap<String, String>()
+    private val searchImageUrls = ConcurrentHashMap<String, String>()
 
     fun getRootId(isRecent: Boolean, isSuggested: Boolean, hasCurrentEpisode: Boolean): String? {
         return when {
@@ -331,7 +332,22 @@ class BrowseTreeProvider @Inject constructor(
             val feedUrl = searchFeedUrls[parentId]
             val podcastFound = if (feedUrl != null) {
                 podcastManager.subscribeToFeedUrl(feedUrl)
-                podcastManager.findPodcastByUuid(parentId)
+                val subscribed = podcastManager.findPodcastByUuid(parentId)
+                // PodHopper: pin the car to the iTunes cover proven to render through the Auto content
+                // provider; the feed's own image url does not survive that pipeline for some hosts. Same
+                // cover image, so the phone is unchanged. Then forget this result: dropping it from the
+                // search maps is what stops a later passive browse from silently re-subscribing the show
+                // and fighting an unsubscribe made on the phone. A fresh search re-arms it.
+                if (subscribed != null) {
+                    val itunesArt = searchImageUrls[parentId]
+                    if (!itunesArt.isNullOrBlank() && subscribed.thumbnailUrl != itunesArt) {
+                        subscribed.thumbnailUrl = itunesArt
+                        podcastManager.updatePodcast(subscribed)
+                    }
+                }
+                searchFeedUrls.remove(parentId)
+                searchImageUrls.remove(parentId)
+                subscribed
             } else {
                 podcastManager.findPodcastByUuid(parentId)
                     ?: podcastManager.findOrDownloadPodcastRxSingle(parentId).toMaybe().onErrorComplete().awaitSingleOrNull()
@@ -553,6 +569,11 @@ class BrowseTreeProvider @Inject constructor(
                         val resultUuid = if (feedUrl != null) feedParser.podcastUuidForFeed(feedUrl) else item.uuid
                         if (feedUrl != null) {
                             searchFeedUrls[resultUuid] = feedUrl
+                            // PodHopper: remember the iTunes cover too. It is the artwork url proven to render
+                            // through the Auto content provider (it is what shows on the search row), so on
+                            // subscribe we pin the show to it instead of the feed's own image url, which does not
+                            // survive that content-provider pipeline for some hosts.
+                            item.imageUrl?.let { searchImageUrls[resultUuid] = it }
                         }
                         Podcast(
                             uuid = resultUuid,

@@ -22,6 +22,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
 import au.com.shiftyjelly.pocketcasts.repositories.download.UpdateEpisodeDetailsTask
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackErrorClassifier
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperPositionSync
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlayerEvent
 import au.com.shiftyjelly.pocketcasts.servers.podcast.PodcastCacheServiceManager
 import au.com.shiftyjelly.pocketcasts.utils.Network
@@ -33,6 +34,7 @@ import au.com.shiftyjelly.pocketcasts.utils.timeIntervalSinceNow
 import com.automattic.eventhorizon.EpisodeStarredEvent
 import com.automattic.eventhorizon.EpisodeUnstarredEvent
 import com.automattic.eventhorizon.EventHorizon
+import dagger.Lazy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.reactivex.Flowable
 import io.reactivex.Maybe
@@ -64,6 +66,7 @@ class EpisodeManagerImpl @Inject constructor(
     private val userEpisodeManager: UserEpisodeManager,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     private val eventHorizon: EventHorizon,
+    private val podHopperPositionSync: Lazy<PodHopperPositionSync>,
 ) : EpisodeManager,
     CoroutineScope {
 
@@ -504,6 +507,10 @@ class EpisodeManagerImpl @Inject constructor(
 
         // Auto archive after playing
         archivePlayedEpisode(episode, playbackManager, podcastManager, sync = true)
+
+        // PodHopper: push the completion across devices. pushCompletion is a no-op when this
+        // mark-as-played is itself a remote apply (echo guard), so a synced completion is not bounced back.
+        podHopperPositionSync.get().pushCompletion(episode)
 
         if (episode is UserEpisode) {
             launch {

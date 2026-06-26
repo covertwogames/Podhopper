@@ -1556,6 +1556,9 @@ open class PlaybackManager @Inject constructor(
             // mark as played
             episodeManager.updatePlayingStatusBlocking(episode, EpisodePlayingStatus.COMPLETED)
 
+            // PodHopper: push the completion across devices so finishing here removes it elsewhere too.
+            podHopperPositionSync.pushCompletion(episode)
+
             // auto archive after playing
             if (episode is PodcastEpisode) {
                 episodeManager.archivePlayedEpisode(episode, this, podcastManager, sync = true)
@@ -2341,7 +2344,7 @@ open class PlaybackManager @Inject constructor(
             } else {
                 player = playerManager.createSimplePlayer(this@PlaybackManager::onPlayerEvent)
                 // Start the service early so it's ready when we install the player later.
-                // The ExoPlayer doesn't exist yet — SimplePlayer creates it lazily in prepare().
+                // The ExoPlayer doesn't exist yet, SimplePlayer creates it lazily in prepare().
                 mediaSessionManager.startServiceIfNeeded(application)
                 Timber.i("Creating media player of type SimplePlayer.")
             }

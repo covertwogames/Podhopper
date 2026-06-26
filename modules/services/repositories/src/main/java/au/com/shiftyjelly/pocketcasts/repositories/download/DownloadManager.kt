@@ -388,8 +388,10 @@ private class DownloadQueueController(
     )
 
     private fun enqueueShowNotesUpdate(episode: BaseEpisode, constraints: Constraints) {
+        // PodHopper: show notes now come from the locally-stored feed description, so there is
+        // nothing to pre-cache from the Pocket Casts show-notes server when an episode downloads.
         when (episode) {
-            is PodcastEpisode -> UpdateShowNotesTask.enqueue(episode, constraints, context)
+            is PodcastEpisode -> Unit
             is UserEpisode -> Unit
         }
     }

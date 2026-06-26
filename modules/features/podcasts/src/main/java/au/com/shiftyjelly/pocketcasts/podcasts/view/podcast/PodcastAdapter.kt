@@ -452,7 +452,6 @@ class PodcastAdapter(
         if (this.podcast.uuid != podcast.uuid) {
             headerExpanded = !podcast.isSubscribed
             ratingsViewModel.loadRatings(podcast.uuid)
-            ratingsViewModel.refreshPodcastRatings(podcast.uuid)
         }
         this.podcast = podcast
         val isHtmlDescription = podcast.podcastHtmlDescription.isNotEmpty()

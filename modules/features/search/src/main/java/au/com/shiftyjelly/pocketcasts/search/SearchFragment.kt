@@ -372,7 +372,7 @@ class SearchFragment : BaseFragment() {
                                     if (!item.isFollowed && !feedUrl.isNullOrBlank()) {
                                         UiUtil.hideKeyboard(searchView)
                                         viewLifecycleOwner.lifecycleScope.launch {
-                                            val uuid = viewModel.addFeedAsUnsubscribed(feedUrl)
+                                            val uuid = viewModel.addFeedStub(item)
                                             if (uuid != null) {
                                                 (activity as? FragmentHostListener)?.openPodcastPage(uuid, SourceView.SEARCH.key)
                                             } else {

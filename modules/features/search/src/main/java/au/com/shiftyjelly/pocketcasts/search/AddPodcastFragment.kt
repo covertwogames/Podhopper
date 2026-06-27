@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.compose.runtime.getValue
@@ -118,13 +119,39 @@ class AddPodcastFragment : BaseFragment() {
             .setPositiveButton("Add") { _, _ ->
                 val url = input.text.toString().trim()
                 if (url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)) {
-                    viewModel.onAddByUrl(url)
+                    openByUrl(url)
                 } else {
                     Toast.makeText(context, "Enter a feed url starting with http or https.", Toast.LENGTH_SHORT).show()
                 }
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun openByUrl(url: String) {
+        val context = requireContext()
+        val progress = AlertDialog.Builder(context)
+            .setView(
+                ProgressBar(context).apply {
+                    isIndeterminate = true
+                    setPadding(48, 48, 48, 48)
+                },
+            )
+            .setCancelable(false)
+            .create()
+        progress.show()
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val uuid = viewModel.addByUrl(url)
+                if (uuid != null) {
+                    (activity as? FragmentHostListener)?.openPodcastPage(uuid, SourceView.DISCOVER.key)
+                } else {
+                    Toast.makeText(context, "Could not open this podcast.", Toast.LENGTH_SHORT).show()
+                }
+            } finally {
+                progress.dismiss()
+            }
+        }
     }
 
     companion object {

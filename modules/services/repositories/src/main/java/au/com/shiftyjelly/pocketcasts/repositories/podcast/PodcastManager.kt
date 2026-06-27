@@ -71,6 +71,19 @@ interface PodcastManager {
      */
     suspend fun addFeedUrlAsUnsubscribed(feedUrl: String): String?
 
+    /**
+     * PodHopper instant open: insert a lightweight NOT subscribed podcast from metadata (no
+     * network) so the real podcast page can open immediately, returning its uuid. Pair with
+     * [fillFeedUrlEpisodes] to load the episodes in the background.
+     */
+    suspend fun addFeedUrlStub(feedUrl: String, title: String, author: String, imageUrl: String?): String
+
+    /**
+     * PodHopper instant open: download and parse the feed for a stub created by [addFeedUrlStub]
+     * and fill in its episodes in the background. Fire and forget; a no op once episodes exist.
+     */
+    fun fillFeedUrlEpisodes(feedUrl: String)
+
     suspend fun subscribeToPodcastOrThrow(podcastUuid: String, sync: Boolean = false, shouldAutoDownload: Boolean = true): Podcast
     fun findOrDownloadPodcastRxSingle(podcastUuid: String, waitForSubscribe: Boolean = false): Single<Podcast>
     fun isSubscribingToPodcasts(): Boolean

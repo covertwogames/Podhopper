@@ -62,24 +62,20 @@ class AddPodcastViewModel @Inject constructor(
                 _resolveFailed.tryEmit(Unit)
                 return@launch
             }
-            openFeedAsUnsubscribed(feedUrl)
-        }
-    }
-
-    fun onAddByUrl(feedUrl: String) {
-        viewModelScope.launch {
-            openFeedAsUnsubscribed(feedUrl)
-        }
-    }
-
-    private suspend fun openFeedAsUnsubscribed(feedUrl: String) {
-        val uuid = podcastManager.addFeedUrlAsUnsubscribed(feedUrl)
-        if (uuid != null) {
+            // Insert a lightweight stub from the tile's own title and artwork and open the page
+            // immediately, then load the episodes in the background so the open feels instant.
+            val uuid = podcastManager.addFeedUrlStub(feedUrl, item.title, item.author, item.imageUrl)
             _openPodcast.tryEmit(uuid)
-        } else {
-            _resolveFailed.tryEmit(Unit)
+            podcastManager.fillFeedUrlEpisodes(feedUrl)
         }
     }
+
+    /**
+     * Add a pasted RSS url as a NOT subscribed podcast and return its uuid, or null if the feed
+     * could not be parsed. This one parses up front (there is no title or artwork to show a stub
+     * with), so the caller shows a brief spinner while it runs.
+     */
+    suspend fun addByUrl(feedUrl: String): String? = podcastManager.addFeedUrlAsUnsubscribed(feedUrl)
 
     private fun deviceCountry(): String {
         val country = Locale.getDefault().country

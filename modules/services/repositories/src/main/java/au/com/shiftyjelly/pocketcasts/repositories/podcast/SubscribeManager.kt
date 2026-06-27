@@ -192,6 +192,60 @@ class SubscribeManager @Inject constructor(
         return parsed.podcast.uuid
     }
 
+    /**
+     * PodHopper instant open: insert a lightweight NOT subscribed podcast row from metadata we
+     * already have (title, author, artwork) without touching the network, so the real podcast page
+     * can open immediately. The episodes are loaded separately by [fillFeedUrlEpisodesBlocking]. If
+     * the podcast already exists it is left exactly as it is. Returns the podcast uuid. Runs
+     * blocking, so it must be called off the main thread.
+     */
+    fun addFeedUrlStubBlocking(feedUrl: String, title: String, author: String, imageUrl: String?): String {
+        val uuid = feedParser.podcastUuidForFeed(feedUrl)
+        if (podcastDao.findByUuidBlocking(uuid) == null) {
+            val stub = Podcast(
+                uuid = uuid,
+                title = title,
+                author = author,
+                thumbnailUrl = imageUrl,
+                podcastUrl = feedUrl,
+                addedDate = Date(),
+                isSubscribed = false,
+            )
+            podcastDao.insertBlocking(stub)
+        }
+        return uuid
+    }
+
+    /**
+     * PodHopper instant open: download and parse the feed and fill in the episodes (and the rest of
+     * the podcast detail) for a stub created by [addFeedUrlStubBlocking]. This is the slow network
+     * step, run in the background after the page is already open. It is a no op if the podcast
+     * already has episodes, so a second tap never re-parses or disturbs play state. The subscribed
+     * flag, original added date and the artwork already on screen are preserved, in case the user
+     * tapped Subscribe on the podcast page while the feed was still downloading. Runs blocking, so
+     * it must be called off the main thread.
+     */
+    fun fillFeedUrlEpisodesBlocking(feedUrl: String) {
+        val uuid = feedParser.podcastUuidForFeed(feedUrl)
+        if (episodeDao.countEpisodesByPodcastBlocking(uuid) > 0) {
+            return
+        }
+        val parsed = feedParser.parse(feedUrl) ?: return
+        val current = podcastDao.findByUuidBlocking(uuid)
+        if (current != null) {
+            parsed.podcast.isSubscribed = current.isSubscribed
+            parsed.podcast.addedDate = current.addedDate
+            if (current.thumbnailUrl != null) {
+                parsed.podcast.thumbnailUrl = current.thumbnailUrl
+            }
+            podcastDao.updateBlocking(parsed.podcast)
+        } else {
+            parsed.podcast.isSubscribed = false
+            podcastDao.insertBlocking(parsed.podcast)
+        }
+        episodeDao.insertAllBlocking(parsed.episodes)
+    }
+
     private fun subscribeToExistingOrServerPodcastRxSingle(podcastUuid: String, sync: Boolean, subscribed: Boolean, shouldAutoDownload: Boolean): Single<Podcast> {
         // PodHopper: never fetch a podcast from the Pocket Casts server. Podcasts only ever enter
         // the app through the client feed engine (an RSS url paste or an iTunes search result). If

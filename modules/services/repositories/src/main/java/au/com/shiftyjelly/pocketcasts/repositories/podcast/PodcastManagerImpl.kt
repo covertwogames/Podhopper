@@ -138,6 +138,18 @@ class PodcastManagerImpl @Inject constructor(
         subscribeManager.addFeedUrlAsUnsubscribedBlocking(feedUrl)
     }
 
+    override suspend fun addFeedUrlStub(feedUrl: String, title: String, author: String, imageUrl: String?): String = withContext(Dispatchers.IO) {
+        subscribeManager.addFeedUrlStubBlocking(feedUrl, title, author, imageUrl)
+    }
+
+    override fun fillFeedUrlEpisodes(feedUrl: String) {
+        // Run on the application scope so the feed keeps loading even if the screen that started it
+        // is gone by the time the download finishes.
+        applicationScope.launch(Dispatchers.IO) {
+            subscribeManager.fillFeedUrlEpisodesBlocking(feedUrl)
+        }
+    }
+
     /**
      * If the podcast isn't already in the database add it as unsubscribed.
      */

@@ -43,6 +43,7 @@ import androidx.lifecycle.ViewModelProvider
 import au.com.shiftyjelly.pocketcasts.compose.AutomotiveTheme
 import au.com.shiftyjelly.pocketcasts.compose.theme
 import au.com.shiftyjelly.pocketcasts.ui.extensions.getThemeDrawable
+import au.com.shiftyjelly.pocketcasts.PodHopperCarPairingViewModel.UiState
 import dagger.hilt.android.AndroidEntryPoint
 import au.com.shiftyjelly.pocketcasts.localization.R as LR
 import au.com.shiftyjelly.pocketcasts.ui.R as UR
@@ -66,7 +67,7 @@ class PodHopperCarPairingActivity : AppCompatActivity() {
                 AutomotiveTheme {
                     val state by viewModel.uiState.collectAsState()
                     LaunchedEffect(state) {
-                        if (state is PodHopperCarPairingViewModel.UiState.Success) {
+                        if (state is UiState.Success) {
                             finish()
                         }
                     }
@@ -83,8 +84,6 @@ class PodHopperCarPairingActivity : AppCompatActivity() {
         setContentView(composeView)
     }
 }
-
-private typealias UiState = PodHopperCarPairingViewModel.UiState
 
 @Composable
 private fun PairingScreen(

@@ -132,6 +132,23 @@ class SupabaseClient @Inject constructor(
         return JSONArray(body)
     }
 
+    /**
+     * Approves a car or TV pairing code on behalf of the signed-in user. The other device (the car)
+     * generates the code and polls for approval; this call, authenticated as the user, tells the
+     * pairing edge function to grant that code access to the user's account. Blocking; call off the
+     * main thread. Throws on failure (invalid or expired code, or network error).
+     */
+    fun approveCarPairing(code: String) {
+        val url = PodHopperConfig.SUPABASE_URL + "/functions/v1/pairing"
+        val body = JSONObject()
+        body.put("action", "approve")
+        body.put("code", code)
+        val request = restRequestBuilder(url)
+            .post(body.toString().toRequestBody(jsonType))
+            .build()
+        executeExpectingSuccess(request, retryOnAuthError = true)
+    }
+
     @Synchronized
     private fun refreshSession(refreshToken: String): String {
         val body = JSONObject()

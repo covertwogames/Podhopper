@@ -23,6 +23,7 @@ import au.com.shiftyjelly.pocketcasts.compose.components.SettingRow
 import au.com.shiftyjelly.pocketcasts.compose.preview.ThemePreviewParameterProvider
 import au.com.shiftyjelly.pocketcasts.compose.theme
 import au.com.shiftyjelly.pocketcasts.settings.about.AboutFragment
+import au.com.shiftyjelly.pocketcasts.settings.carsync.PodHopperCarSyncFragment
 import au.com.shiftyjelly.pocketcasts.settings.developer.DeveloperFragment
 import au.com.shiftyjelly.pocketcasts.settings.history.HistoryFragment
 import au.com.shiftyjelly.pocketcasts.settings.notifications.NotificationsSettingsFragment
@@ -106,6 +107,9 @@ fun SettingsFragmentPage(
             }
             item {
                 AdvancedRow(onClick = { openFragment(AdvancedSettingsFragment()) })
+            }
+            item {
+                SyncAccountToCarRow(onClick = { openFragment(PodHopperCarSyncFragment()) })
             }
             item {
                 PrivacyRow(onClick = { openFragment(PrivacyFragment()) })
@@ -269,6 +273,15 @@ private fun AdvancedRow(onClick: () -> Unit) {
     SettingRow(
         primaryText = stringResource(LR.string.settings_title_advanced),
         icon = painterResource(SR.drawable.settings_advanced),
+        modifier = Modifier.rowModifier(onClick),
+    )
+}
+
+@Composable
+private fun SyncAccountToCarRow(onClick: () -> Unit) {
+    SettingRow(
+        primaryText = stringResource(SR.string.podhopper_car_sync_title),
+        icon = painterResource(SR.drawable.podhopper_settings_car),
         modifier = Modifier.rowModifier(onClick),
     )
 }

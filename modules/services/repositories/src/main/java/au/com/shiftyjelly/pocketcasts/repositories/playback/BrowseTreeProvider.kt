@@ -20,6 +20,7 @@ import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.preferences.model.AutoPlaySource
 import au.com.shiftyjelly.pocketcasts.repositories.search.ImprovedSearchManager
 import au.com.shiftyjelly.pocketcasts.repositories.search.ItunesTopListLoader
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperSubscriptionSync
 import au.com.shiftyjelly.pocketcasts.repositories.playback.auto.AutoConverter
 import au.com.shiftyjelly.pocketcasts.repositories.playback.auto.AutoConverter.convertFolderToMediaItem
 import au.com.shiftyjelly.pocketcasts.repositories.playback.auto.AutoConverter.convertPodcastToMediaItem
@@ -69,6 +70,7 @@ class BrowseTreeProvider @Inject constructor(
     private val settings: Settings,
     private val improvedSearchManager: ImprovedSearchManager,
     private val itunesTopListLoader: ItunesTopListLoader,
+    private val podHopperSubscriptionSync: PodHopperSubscriptionSync,
     private val feedParser: FeedParser,
 ) {
 
@@ -96,6 +98,13 @@ class BrowseTreeProvider @Inject constructor(
 
     suspend fun loadChildren(parentId: String, context: Context): List<MediaItem> {
         Timber.d("On load children: $parentId")
+        // PodHopper: on the car, opening any browse node is a cue to check for subscription changes
+        // made on other devices, so the Podcasts list feels current the moment it is opened. Mirrors
+        // the phone's navigation poll. Throttled to once a second and a no-op while signed out, so it
+        // is cheap. Gated on automotive, so phone-projected Android Auto never enters this branch.
+        if (Util.isAutomotive(context)) {
+            podHopperSubscriptionSync.pollSubscriptions()
+        }
         return when (parentId) {
             RECENT_ROOT -> loadRecentChildren(context)
 

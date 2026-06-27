@@ -8,6 +8,8 @@ import au.com.shiftyjelly.pocketcasts.models.type.SignInState
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.repositories.endofyear.EndOfYearManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperPositionSync
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperSubscriptionSync
 import au.com.shiftyjelly.pocketcasts.repositories.podhopper.SupabaseClient
 import au.com.shiftyjelly.pocketcasts.repositories.user.StatsManager
 import au.com.shiftyjelly.pocketcasts.repositories.user.UserManager
@@ -55,6 +57,8 @@ class ProfileViewModel @Inject constructor(
     private val endOfYearManager: EndOfYearManager,
     private val eventHorizon: EventHorizon,
     private val supabaseClient: SupabaseClient,
+    private val positionSync: PodHopperPositionSync,
+    private val subscriptionSync: PodHopperSubscriptionSync,
 ) : ViewModel() {
     private val refreshStatsTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -187,6 +191,10 @@ class ProfileViewModel @Inject constructor(
 
     internal fun logoutPodHopper() {
         supabaseClient.logout()
+        // Forget this device's sync bookkeeping so signing into a different account next starts
+        // clean. No on-device podcast, episode, or download data is touched.
+        positionSync.clearLocalSyncState()
+        subscriptionSync.clearLocalSyncState()
     }
 
     internal fun onShareClick() {

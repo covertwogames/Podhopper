@@ -29,8 +29,9 @@ import kotlinx.coroutines.launch
 /**
  * The Discover tab. In landing mode it shows a search bar, a suggestions grid from the iTunes top
  * list, a Discover more link to the full grid, and an add by RSS url row. In full grid mode it
- * shows the larger grid on its own screen. Tapping a tile resolves its real feed url and opens the
- * shared feed preview; the search bar opens the existing remote search.
+ * shows the larger grid on its own screen. Tapping a tile resolves its real feed url, adds it as a
+ * not subscribed podcast, and opens the real podcast page; the search bar opens the existing remote
+ * search.
  */
 @AndroidEntryPoint
 class AddPodcastFragment : BaseFragment() {
@@ -76,8 +77,8 @@ class AddPodcastFragment : BaseFragment() {
             viewModel.load(limit)
         }
         viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.openPreview.collect { feedUrl ->
-                (activity as? FragmentHostListener)?.addFragment(FeedPreviewFragment.newInstance(feedUrl), onTop = true)
+            viewModel.openPodcast.collect { uuid ->
+                (activity as? FragmentHostListener)?.openPodcastPage(uuid, SourceView.DISCOVER.key)
             }
         }
         viewLifecycleOwner.lifecycleScope.launch {
@@ -117,7 +118,7 @@ class AddPodcastFragment : BaseFragment() {
             .setPositiveButton("Add") { _, _ ->
                 val url = input.text.toString().trim()
                 if (url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)) {
-                    (activity as? FragmentHostListener)?.addFragment(FeedPreviewFragment.newInstance(url), onTop = true)
+                    viewModel.onAddByUrl(url)
                 } else {
                     Toast.makeText(context, "Enter a feed url starting with http or https.", Toast.LENGTH_SHORT).show()
                 }

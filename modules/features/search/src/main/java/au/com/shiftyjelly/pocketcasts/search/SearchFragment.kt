@@ -10,6 +10,7 @@ import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import android.view.inputmethod.EditorInfo
 import androidx.appcompat.widget.SearchView
 import androidx.compose.foundation.layout.Spacer
@@ -370,10 +371,14 @@ class SearchFragment : BaseFragment() {
                                     val feedUrl = item.feedUrl
                                     if (!item.isFollowed && !feedUrl.isNullOrBlank()) {
                                         UiUtil.hideKeyboard(searchView)
-                                        (activity as? FragmentHostListener)?.addFragment(
-                                            FeedPreviewFragment.newInstance(feedUrl),
-                                            onTop = true,
-                                        )
+                                        viewLifecycleOwner.lifecycleScope.launch {
+                                            val uuid = viewModel.addFeedAsUnsubscribed(feedUrl)
+                                            if (uuid != null) {
+                                                (activity as? FragmentHostListener)?.openPodcastPage(uuid, SourceView.SEARCH.key)
+                                            } else {
+                                                Toast.makeText(requireContext(), "Could not open this podcast.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
                                     } else {
                                         onPodcastClick(SearchHistoryEntry.fromImprovedPodcastResult(item), item.isFollowed)
                                     }

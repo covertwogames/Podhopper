@@ -170,6 +170,28 @@ class SubscribeManager @Inject constructor(
         subscriptionChangedRelay.accept(parsed.podcast.uuid)
     }
 
+    /**
+     * PodHopper play without subscribing: fetch and parse an RSS feed directly (no Pocket Casts
+     * server) and store it as a NOT subscribed podcast with its episodes, so the real podcast page
+     * can open and play it without following it. If the podcast already exists locally it is left
+     * exactly as it is: its subscribed state is not changed and no subscription event is fired, so
+     * this never pulls a podcast into the subscribed library, refresh, notification or sync flows.
+     * Runs blocking, so it must be called off the main thread. Returns the podcast uuid, or null if
+     * the feed could not be parsed.
+     */
+    fun addFeedUrlAsUnsubscribedBlocking(feedUrl: String): String? {
+        val uuid = feedParser.podcastUuidForFeed(feedUrl)
+        val existing = podcastDao.findByUuidBlocking(uuid)
+        if (existing != null) {
+            return uuid
+        }
+        val parsed = feedParser.parse(feedUrl) ?: return null
+        parsed.podcast.isSubscribed = false
+        podcastDao.insertBlocking(parsed.podcast)
+        episodeDao.insertAllBlocking(parsed.episodes)
+        return parsed.podcast.uuid
+    }
+
     private fun subscribeToExistingOrServerPodcastRxSingle(podcastUuid: String, sync: Boolean, subscribed: Boolean, shouldAutoDownload: Boolean): Single<Podcast> {
         // PodHopper: never fetch a podcast from the Pocket Casts server. Podcasts only ever enter
         // the app through the client feed engine (an RSS url paste or an iTunes search result). If

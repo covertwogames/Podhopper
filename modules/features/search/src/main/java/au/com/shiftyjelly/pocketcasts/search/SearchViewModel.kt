@@ -233,6 +233,14 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Add an iTunes search result as a NOT subscribed podcast by its real RSS url, so the real
+     * podcast page can open and play it without following it. Returns the podcast uuid, or null if
+     * the feed could not be parsed.
+     */
+    suspend fun addFeedAsUnsubscribed(feedUrl: String): String? =
+        podcastManager.addFeedUrlAsUnsubscribed(feedUrl)
+
     private fun markPodcastSubscribed(uuid: String) {
         // Optimistically update subscribe status
         _state.update {

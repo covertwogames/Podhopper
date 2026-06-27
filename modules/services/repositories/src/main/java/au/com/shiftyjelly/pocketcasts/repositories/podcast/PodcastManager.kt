@@ -65,6 +65,12 @@ interface PodcastManager {
     /** PodHopper: subscribe to a podcast directly from its RSS feed URL (client-side, no server). */
     suspend fun subscribeToFeedUrl(feedUrl: String)
 
+    /**
+     * PodHopper: add a podcast from its RSS feed URL as NOT subscribed (so it can be opened and
+     * played without following it), returning its uuid, or null if the feed could not be parsed.
+     */
+    suspend fun addFeedUrlAsUnsubscribed(feedUrl: String): String?
+
     suspend fun subscribeToPodcastOrThrow(podcastUuid: String, sync: Boolean = false, shouldAutoDownload: Boolean = true): Podcast
     fun findOrDownloadPodcastRxSingle(podcastUuid: String, waitForSubscribe: Boolean = false): Single<Podcast>
     fun isSubscribingToPodcasts(): Boolean

@@ -134,6 +134,10 @@ class PodcastManagerImpl @Inject constructor(
         subscribeManager.subscribeToFeedUrlBlocking(feedUrl)
     }
 
+    override suspend fun addFeedUrlAsUnsubscribed(feedUrl: String): String? = withContext(Dispatchers.IO) {
+        subscribeManager.addFeedUrlAsUnsubscribedBlocking(feedUrl)
+    }
+
     /**
      * If the podcast isn't already in the database add it as unsubscribed.
      */

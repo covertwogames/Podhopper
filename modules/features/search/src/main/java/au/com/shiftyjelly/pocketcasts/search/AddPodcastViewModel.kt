@@ -2,6 +2,7 @@ package au.com.shiftyjelly.pocketcasts.search
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
 import au.com.shiftyjelly.pocketcasts.repositories.search.ItunesTopListLoader
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.Locale
@@ -16,12 +17,14 @@ import kotlinx.coroutines.launch
 
 /**
  * Backs the Discover landing and its full grid. Loads the iTunes top podcasts chart for the
- * device's country and, when a tile is tapped, resolves that chart entry to its real RSS feed url
- * so the preview screen can open it.
+ * device's country and, when a tile is tapped, resolves that chart entry to its real RSS feed url,
+ * adds it as a not subscribed podcast, and opens the real podcast page so it can be played without
+ * following it.
  */
 @HiltViewModel
 class AddPodcastViewModel @Inject constructor(
     private val topListLoader: ItunesTopListLoader,
+    private val podcastManager: PodcastManager,
 ) : ViewModel() {
 
     sealed interface UiState {
@@ -33,8 +36,8 @@ class AddPodcastViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    private val _openPreview = MutableSharedFlow<String>(extraBufferCapacity = 1)
-    val openPreview: SharedFlow<String> = _openPreview.asSharedFlow()
+    private val _openPodcast = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val openPodcast: SharedFlow<String> = _openPodcast.asSharedFlow()
 
     private val _resolveFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val resolveFailed: SharedFlow<Unit> = _resolveFailed.asSharedFlow()
@@ -57,9 +60,24 @@ class AddPodcastViewModel @Inject constructor(
             val feedUrl = topListLoader.resolveFeedUrl(item.lookupUrl)
             if (feedUrl.isNullOrBlank()) {
                 _resolveFailed.tryEmit(Unit)
-            } else {
-                _openPreview.tryEmit(feedUrl)
+                return@launch
             }
+            openFeedAsUnsubscribed(feedUrl)
+        }
+    }
+
+    fun onAddByUrl(feedUrl: String) {
+        viewModelScope.launch {
+            openFeedAsUnsubscribed(feedUrl)
+        }
+    }
+
+    private suspend fun openFeedAsUnsubscribed(feedUrl: String) {
+        val uuid = podcastManager.addFeedUrlAsUnsubscribed(feedUrl)
+        if (uuid != null) {
+            _openPodcast.tryEmit(uuid)
+        } else {
+            _resolveFailed.tryEmit(Unit)
         }
     }
 

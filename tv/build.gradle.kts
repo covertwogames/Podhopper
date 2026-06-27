@@ -22,11 +22,13 @@ android {
 
     buildTypes {
         named("debug") {
-            manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher_radioactive"
+            // PodHopper: ic_launcher_radioactive was a Pocket Casts debug icon that no longer exists
+            // after de-branding, so debug builds use the normal launcher icon.
+            manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher"
         }
 
         named("debugProd") {
-            manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher_radioactive"
+            manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher"
         }
 
         named("release") {

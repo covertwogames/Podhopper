@@ -57,9 +57,7 @@ class AutomotiveAboutFragment : Fragment() {
     }
 
     private fun openPrivacy() {
-        val heading = getString(LR.string.settings_about_privacy_policy)
-        val body = "Read the full PodHopper privacy policy on the web:\n\npodhopper.app/privacy\n\nQuestions about your data? Email support@covertwogames.com"
-        addPage(AutomotiveTextPageFragment.newInstance(heading, body))
+        addPage(AutomotivePrivacyFragment())
     }
 
     private fun openHelp() {

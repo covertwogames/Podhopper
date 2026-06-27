@@ -429,7 +429,7 @@ class BrowseTreeProvider @Inject constructor(
         }
     }
 
-    private suspend fun loadAutomotiveRootChildren(context: Context): List<MediaItem> {
+    private fun loadAutomotiveRootChildren(context: Context): List<MediaItem> {
         val extrasContentAsList = Bundle().apply {
             putInt(DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, DESCRIPTION_EXTRAS_VALUE_CONTENT_STYLE_LIST_ITEM)
         }
@@ -445,11 +445,11 @@ class BrowseTreeProvider @Inject constructor(
         val discoverItem = buildListMediaItem(context, id = DISCOVER_ROOT, title = LR.string.discover, drawable = IR.drawable.auto_tab_discover)
         val profileItem = buildListMediaItem(context, id = PROFILE_ROOT, title = LR.string.profile, drawable = IR.drawable.auto_tab_profile, extras = extrasContentAsList)
 
-        return if (podcastManager.countSubscribed() > 0) {
-            listOf(podcastsItem, filtersItem, discoverItem, profileItem)
-        } else {
-            listOf(discoverItem, podcastsItem, filtersItem, profileItem)
-        }
+        // PodHopper: always land on Podcasts first. Upstream showed Discover first when no
+        // subscriptions were present, but right after car sign-in the subscription sync has not
+        // finished yet, so countSubscribed() is momentarily 0 and the car would open on Discover.
+        // Podcasts is the expected home tab, so it always leads.
+        return listOf(podcastsItem, filtersItem, discoverItem, profileItem)
     }
 
     private suspend fun loadFiltersRoot(context: Context): List<MediaItem> {

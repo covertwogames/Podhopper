@@ -32,10 +32,7 @@ import au.com.shiftyjelly.pocketcasts.compose.AutomotiveTheme
 import au.com.shiftyjelly.pocketcasts.compose.components.HorizontalDivider
 import au.com.shiftyjelly.pocketcasts.compose.extensions.contentWithoutConsumedInsets
 import au.com.shiftyjelly.pocketcasts.compose.theme
-import au.com.shiftyjelly.pocketcasts.extensions.openUrl
 import au.com.shiftyjelly.pocketcasts.localization.BuildConfig
-import au.com.shiftyjelly.pocketcasts.preferences.Settings
-import au.com.shiftyjelly.pocketcasts.settings.LogsFragment
 import au.com.shiftyjelly.pocketcasts.ui.extensions.getThemeDrawable
 import au.com.shiftyjelly.pocketcasts.ui.helper.FragmentHostListener
 import dagger.hilt.android.AndroidEntryPoint
@@ -52,27 +49,39 @@ class AutomotiveAboutFragment : Fragment() {
     ) = contentWithoutConsumedInsets {
         AutomotiveTheme {
             AboutPage(
+                onOpenPrivacy = { openPrivacy() },
                 onOpenLicenses = { openLicenses() },
-                onOpenLogs = { onOpenLogs() },
-                onOpenUrl = { openUrl(it) },
+                onOpenHelp = { openHelp() },
             )
         }
     }
 
-    private fun openLicenses() {
-        (activity as? FragmentHostListener)?.addFragment(AutomotiveLicensesFragment())
+    private fun openPrivacy() {
+        val heading = getString(LR.string.settings_about_privacy_policy)
+        val body = "Read the full PodHopper privacy policy on the web:\n\npodhopper.app/privacy\n\nQuestions about your data? Email support@covertwogames.com"
+        addPage(AutomotiveTextPageFragment.newInstance(heading, body))
     }
 
-    private fun onOpenLogs() {
-        (activity as? FragmentHostListener)?.addFragment(LogsFragment())
+    private fun openHelp() {
+        val heading = getString(LR.string.settings_title_help)
+        val body = "Web: podhopper.app\n\nEmail: support@covertwogames.com"
+        addPage(AutomotiveTextPageFragment.newInstance(heading, body))
+    }
+
+    private fun openLicenses() {
+        addPage(AutomotiveLicensesFragment())
+    }
+
+    private fun addPage(fragment: Fragment) {
+        (activity as? FragmentHostListener)?.addFragment(fragment)
     }
 }
 
 @Composable
 private fun AboutPage(
+    onOpenPrivacy: () -> Unit,
     onOpenLicenses: () -> Unit,
-    onOpenLogs: () -> Unit,
-    onOpenUrl: (String) -> Unit,
+    onOpenHelp: () -> Unit,
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -98,12 +107,8 @@ private fun AboutPage(
         )
         SubTitle(stringResource(LR.string.settings_about_legal))
         TextLinkButton(
-            text = stringResource(LR.string.settings_about_terms_of_serivce),
-            onClick = { onOpenUrl(Settings.INFO_TOS_URL) },
-        )
-        TextLinkButton(
             text = stringResource(LR.string.settings_about_privacy_policy),
-            onClick = { onOpenUrl(Settings.INFO_PRIVACY_URL) },
+            onClick = { onOpenPrivacy() },
         )
         TextLinkButton(
             text = stringResource(LR.string.settings_about_acknowledgements),
@@ -112,11 +117,7 @@ private fun AboutPage(
         SubTitle(stringResource(LR.string.support))
         TextLinkButton(
             text = stringResource(LR.string.settings_title_help),
-            onClick = { onOpenUrl(Settings.INFO_FAQ_URL) },
-        )
-        TextLinkButton(
-            text = stringResource(LR.string.settings_logs),
-            onClick = { onOpenLogs() },
+            onClick = { onOpenHelp() },
         )
         Spacer(Modifier.height(15.dp))
     }
@@ -156,5 +157,5 @@ private fun TextLinkButton(text: String, onClick: () -> Unit, modifier: Modifier
 @Composable
 @Preview
 private fun AboutPageRow() {
-    AboutPage(onOpenLicenses = {}, onOpenLogs = {}, onOpenUrl = {})
+    AboutPage(onOpenPrivacy = {}, onOpenLicenses = {}, onOpenHelp = {})
 }

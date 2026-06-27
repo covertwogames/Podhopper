@@ -4,14 +4,18 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -95,14 +99,25 @@ private fun PairingScreen(
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top,
+    // Fill the whole display, pad in by the system bars (so the car's top status row and bottom nav
+    // never clip the content), scroll when the content is taller than the area, and cap the content
+    // width so it stays centered and readable on very wide landscape screens. This keeps the email
+    // fallback reachable on any screen shape or ratio.
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(horizontal = 48.dp, vertical = 40.dp),
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .verticalScroll(scrollState),
+        contentAlignment = Alignment.TopCenter,
     ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Top,
+            modifier = Modifier
+                .widthIn(max = 640.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 48.dp, vertical = 40.dp),
+        ) {
         Image(
             painter = painterResource(context.getThemeDrawable(UR.attr.logo_title_vertical)),
             contentDescription = stringResource(LR.string.podhopper_car_pairing_title),
@@ -171,6 +186,7 @@ private fun PairingScreen(
                     color = MaterialTheme.theme.colors.primaryText01,
                 )
             }
+        }
         }
     }
 }

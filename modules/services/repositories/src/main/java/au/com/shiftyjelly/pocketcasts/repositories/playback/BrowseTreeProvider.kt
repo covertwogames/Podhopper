@@ -499,7 +499,7 @@ class BrowseTreeProvider @Inject constructor(
             }.awaitAll()
         }.filterNotNull()
 
-        return resolved.map { (top, feedUrl) ->
+        return resolved.mapNotNull { (top, feedUrl) ->
             val resultUuid = feedParser.podcastUuidForFeed(feedUrl)
             searchFeedUrls[resultUuid] = feedUrl
             top.imageUrl?.let { searchImageUrls[resultUuid] = it }

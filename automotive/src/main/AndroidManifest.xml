@@ -43,6 +43,19 @@
             </intent-filter>
         </activity>
 
+        <!-- PodHopper: car sign-in (pairing). Launched while parked from the media browser's
+             "Sign In" resolution action and from car Settings. Not distraction optimized, so the
+             system only allows it while the vehicle is parked. -->
+        <activity android:name=".PodHopperCarPairingActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Automotive.ThemeDark">
+            <intent-filter>
+                <action android:name="au.com.shiftyjelly.pocketcasts.intents.PAIR_CAR"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".AutoPlaybackService"
             android:exported="true"
@@ -77,7 +90,7 @@
         <meta-data android:name="google_analytics_adid_collection_enabled" android:value="false"/>
 
         <meta-data
-            android:name="pocketcasts_automotive"
+            android:name="podhopper_automotive"
             android:value="true" />
     </application>
 

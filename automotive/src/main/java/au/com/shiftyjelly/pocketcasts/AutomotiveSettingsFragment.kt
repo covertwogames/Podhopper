@@ -2,76 +2,52 @@ package au.com.shiftyjelly.pocketcasts
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.appcompat.app.AlertDialog
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.Button
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import au.com.shiftyjelly.pocketcasts.account.AccountActivity
 import au.com.shiftyjelly.pocketcasts.compose.AppTheme
-import au.com.shiftyjelly.pocketcasts.compose.components.UserAvatarConfig
 import au.com.shiftyjelly.pocketcasts.compose.extensions.setContentWithViewCompositionStrategy
-import au.com.shiftyjelly.pocketcasts.coroutines.flow.windowed
+import au.com.shiftyjelly.pocketcasts.compose.theme
 import au.com.shiftyjelly.pocketcasts.databinding.FragmentAutomotiveSettingsBinding
-import au.com.shiftyjelly.pocketcasts.models.type.SignInState
-import au.com.shiftyjelly.pocketcasts.profile.AccountDetailsFragment
-import au.com.shiftyjelly.pocketcasts.profile.ProfileHeaderConfig
-import au.com.shiftyjelly.pocketcasts.profile.ProfileHeaderState
-import au.com.shiftyjelly.pocketcasts.profile.VerticalProfileHeader
-import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
-import au.com.shiftyjelly.pocketcasts.repositories.playback.UpNextQueue
-import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
-import au.com.shiftyjelly.pocketcasts.repositories.podcast.FolderManager
-import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
-import au.com.shiftyjelly.pocketcasts.repositories.searchhistory.SearchHistoryManager
-import au.com.shiftyjelly.pocketcasts.repositories.sync.SyncManager
-import au.com.shiftyjelly.pocketcasts.repositories.user.UserManager
-import au.com.shiftyjelly.pocketcasts.utils.Gravatar
-import au.com.shiftyjelly.pocketcasts.utils.toDurationFromNow
+import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.SupabaseClient
 import au.com.shiftyjelly.pocketcasts.views.fragments.BaseFragment
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.reactive.asFlow
-import au.com.shiftyjelly.pocketcasts.cartheme.R as CR
+import kotlinx.coroutines.withContext
 import au.com.shiftyjelly.pocketcasts.localization.R as LR
 
 @AndroidEntryPoint
 class AutomotiveSettingsFragment : BaseFragment() {
     @Inject
-    lateinit var userManager: UserManager
+    lateinit var supabaseClient: SupabaseClient
 
     @Inject
-    lateinit var syncManager: SyncManager
-
-    @Inject
-    lateinit var podcastManager: PodcastManager
-
-    @Inject
-    lateinit var episodeManager: EpisodeManager
-
-    @Inject
-    lateinit var folderManager: FolderManager
-
-    @Inject
-    lateinit var searchHistoryManager: SearchHistoryManager
-
-    @Inject
-    lateinit var playbackManager: PlaybackManager
-
-    @Inject
-    lateinit var upNextQueue: UpNextQueue
+    lateinit var settings: Settings
 
     private lateinit var binding: FragmentAutomotiveSettingsBinding
 
@@ -82,119 +58,87 @@ class AutomotiveSettingsFragment : BaseFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        binding.setupuserView()
+        binding.setupUserView()
 
+        // Close settings once signed in, to meet the car sign-in UX (return to the media UI, which
+        // now shows the user's podcasts). Only the signed-out to signed-in transition closes the
+        // screen; signing out from here leaves it open so the user can sign in again.
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                userManager.getSignInState().asFlow().windowed(2)
-                    .filter { (previous, current) -> !previous.isSignedIn && current.isSignedIn }
-                    .collect {
-                        // We have to close after signing in to meet Google UX requirements
+                var wasSignedIn = supabaseClient.isLoggedIn()
+                supabaseClient.loginState.collect { signedIn ->
+                    if (!wasSignedIn && signedIn) {
                         requireActivity().finish()
                     }
+                    wasSignedIn = signedIn
+                }
             }
         }
     }
 
-    private fun FragmentAutomotiveSettingsBinding.setupuserView() {
-        val config = ProfileHeaderConfig(
-            avatarConfig = UserAvatarConfig(
-                imageSize = 144.dp,
-                strokeWidth = 4.dp,
-                imageContentPadding = 4.dp,
-                badgeFontSize = 18.sp,
-                badgeIconSize = 18.dp,
-                badgeContentPadding = 6.dp,
-            ),
-            infoFontScale = 1.6f,
-            spacingScale = 2f,
-        )
-        val headerStateFlow = userManager.getSignInState().asFlow().map { state ->
-            when (state) {
-                is SignInState.SignedIn -> ProfileHeaderState(
-                    imageUrl = Gravatar.getUrl(state.email),
-                    subscriptionTier = state.subscription?.tier,
-                    email = state.email,
-                    expiresIn = state.subscription?.expiryDate?.toDurationFromNow(),
-                )
-
-                is SignInState.SignedOut -> ProfileHeaderState(
-                    imageUrl = null,
-                    subscriptionTier = null,
-                    email = null,
-                    expiresIn = null,
-                )
-            }
-        }
-        val emptyState = ProfileHeaderState(
-            imageUrl = null,
-            subscriptionTier = null,
-            email = null,
-            expiresIn = null,
-        )
+    private fun FragmentAutomotiveSettingsBinding.setupUserView() {
+        val accountFlow = combine(
+            supabaseClient.loginState,
+            settings.podhopperEmail.flow,
+        ) { signedIn, email -> CarAccountState(signedIn, email) }
+        val initialState = CarAccountState(supabaseClient.isLoggedIn(), settings.podhopperEmail.value)
         userView.setContentWithViewCompositionStrategy {
-            val state by headerStateFlow.collectAsState(emptyState)
+            val state by accountFlow.collectAsState(initialState)
             AppTheme(theme.activeTheme) {
-                VerticalProfileHeader(
+                CarAccountHeader(
                     state = state,
-                    onClick = { onProfileAccountButtonClicked(loggedIn = state.email != null) },
-                    config = config,
+                    onSignIn = { launchPairing() },
+                    onSignOut = { signOut() },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
     }
 
-    private fun onProfileAccountButtonClicked(loggedIn: Boolean) {
-        if (loggedIn) {
-            openSettingsFragment()
+    private fun launchPairing() {
+        startActivity(Intent(requireContext(), PodHopperCarPairingActivity::class.java))
+    }
+
+    private fun signOut() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            withContext(Dispatchers.IO) { supabaseClient.logout() }
+        }
+    }
+}
+
+private data class CarAccountState(val signedIn: Boolean, val email: String)
+
+@Composable
+private fun CarAccountHeader(
+    state: CarAccountState,
+    onSignIn: () -> Unit,
+    onSignOut: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Top,
+        modifier = modifier.padding(horizontal = 32.dp, vertical = 24.dp),
+    ) {
+        val signedInWithEmail = state.signedIn && state.email.isNotBlank()
+        Text(
+            text = if (signedInWithEmail) {
+                stringResource(LR.string.podhopper_car_account_signed_in, state.email)
+            } else {
+                stringResource(LR.string.podhopper_car_account_signed_out)
+            },
+            fontSize = 26.sp,
+            color = MaterialTheme.theme.colors.primaryText01,
+        )
+        Spacer(Modifier.height(20.dp))
+        if (state.signedIn) {
+            Button(onClick = onSignOut, modifier = Modifier.widthIn(min = 240.dp)) {
+                Text(text = stringResource(LR.string.podhopper_car_account_sign_out), fontSize = 22.sp)
+            }
         } else {
-            launch {
-                signIn()
+            Button(onClick = onSignIn, modifier = Modifier.widthIn(min = 240.dp)) {
+                Text(text = stringResource(LR.string.podhopper_car_account_sign_in), fontSize = 22.sp)
             }
         }
-    }
-
-    private suspend fun signIn() {
-        // ask the user if they want to clear their data before they sign in
-        if (isAccountUsed()) {
-            val context = context ?: return
-            val themedContext = ContextThemeWrapper(context, CR.style.Theme_Car_NoActionBar)
-            val builder = AlertDialog.Builder(themedContext)
-            builder.setTitle(getString(LR.string.profile_clear_data_question))
-                .setMessage(getString(LR.string.profile_clear_data_would_you_also_like_question))
-                .setPositiveButton(getString(LR.string.sign_in)) { _, _ -> openSignInActivity() }
-                .setNegativeButton(getString(LR.string.profile_clear_data)) { _, _ ->
-                    userManager.signOutAndClearData(
-                        playbackManager = playbackManager,
-                        upNextQueue = upNextQueue,
-                        folderManager = folderManager,
-                        searchHistoryManager = searchHistoryManager,
-                        episodeManager = episodeManager,
-                        wasInitiatedByUser = false,
-                    )
-                    openSignInActivity()
-                }
-                .show()
-        } else {
-            openSignInActivity()
-        }
-    }
-
-    private fun openSettingsFragment() {
-        val fragment = AccountDetailsFragment.newInstance()
-        (activity as? AutomotiveSettingsActivity)?.addFragment(fragment)
-    }
-
-    private fun openSignInActivity() {
-        val intent = Intent(activity, AccountActivity::class.java)
-        startActivity(intent)
-    }
-
-    private suspend fun isAccountUsed(): Boolean {
-        return syncManager.isLoggedIn() ||
-            !upNextQueue.isEmpty ||
-            podcastManager.countSubscribed() > 0 ||
-            episodeManager.countEpisodes() > 0
     }
 }

@@ -360,7 +360,7 @@ class Media3LibrarySessionCallbackTest {
     fun `onPlaybackResumption sets automotive connected flag on automotive`() = runTest {
         val automotiveContext: Context = mock()
         val automotivePackageManager: PackageManager = mock()
-        val metaData = Bundle().apply { putBoolean("pocketcasts_automotive", true) }
+        val metaData = Bundle().apply { putBoolean("podhopper_automotive", true) }
         val appInfo = ApplicationInfo().apply { this.metaData = metaData }
         whenever(automotivePackageManager.getApplicationInfo(any<String>(), any<Int>())).thenReturn(appInfo)
         whenever(automotiveContext.packageManager).thenReturn(automotivePackageManager)

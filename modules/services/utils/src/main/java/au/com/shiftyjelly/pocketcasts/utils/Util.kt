@@ -27,7 +27,7 @@ object Util {
         return uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_CAR
     }
 
-    fun isAutomotive(context: Context): Boolean = appInfoHasBoolean("pocketcasts_automotive", context)
+    fun isAutomotive(context: Context): Boolean = appInfoHasBoolean("podhopper_automotive", context)
 
     fun isWearOs(context: Context): Boolean = appInfoHasBoolean("pocketcasts_wear_os", context)
 

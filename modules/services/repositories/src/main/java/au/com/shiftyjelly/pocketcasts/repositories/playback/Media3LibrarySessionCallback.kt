@@ -1,9 +1,11 @@
 package au.com.shiftyjelly.pocketcasts.repositories.playback
 
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.annotation.OptIn
+import androidx.media.utils.MediaConstants
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Rating
@@ -22,6 +24,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
 import au.com.shiftyjelly.pocketcasts.utils.Util
 import au.com.shiftyjelly.pocketcasts.utils.log.LogBuffer
+import au.com.shiftyjelly.pocketcasts.localization.R as LR
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -224,6 +227,18 @@ internal class Media3LibrarySessionCallback(
         pageSize: Int,
         params: MediaLibraryService.LibraryParams?,
     ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+        // PodHopper: on the car only, if there is no signed-in PodHopper account, return an
+        // authentication error for any browse request. media3 forwards this error (with the sign-in
+        // button below) to the platform session the car reads, so the car shows a full-screen prompt
+        // with a Sign In button. Tapping it (while parked) launches the pairing screen. After the
+        // car is paired, the next children query succeeds and the prompt clears on its own. This is
+        // gated on Util.isAutomotive, so the phone and phone-projected Android Auto never run it. The
+        // error is returned here from onGetChildren rather than onGetLibraryRoot because root errors
+        // are not forwarded to the legacy browser the car connects as.
+        val context = contextProvider()
+        if (Util.isAutomotive(context) && settings.podhopperRefreshToken.value.isEmpty()) {
+            return Futures.immediateFuture(buildCarSignInRequiredResult(context))
+        }
         val future = SettableFuture.create<LibraryResult<ImmutableList<MediaItem>>>()
         scope.launch {
             try {
@@ -286,5 +301,47 @@ internal class Media3LibrarySessionCallback(
         val start = (page.toLong() * pageSize).coerceAtMost(items.size.toLong()).toInt()
         val end = (start + pageSize).coerceAtMost(items.size)
         return items.subList(start, end)
+    }
+
+    /**
+     * Builds the "sign in required" browse error for the car: an authentication error carrying a
+     * label and a resolution PendingIntent. The car renders this as a full-screen prompt with a
+     * Sign In button that launches the pairing screen (via an implicit action intent scoped to this
+     * app, so this module does not need to depend on the automotive sign-in activity).
+     */
+    private fun buildCarSignInRequiredResult(context: Context): LibraryResult<ImmutableList<MediaItem>> {
+        val signInIntent = Intent(CAR_SIGN_IN_ACTION).apply {
+            setPackage(context.packageName)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            signInIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val errorExtras = Bundle().apply {
+            putString(
+                MediaConstants.PLAYBACK_STATE_EXTRAS_KEY_ERROR_RESOLUTION_ACTION_LABEL,
+                context.getString(LR.string.podhopper_car_signin_button),
+            )
+            putParcelable(
+                MediaConstants.PLAYBACK_STATE_EXTRAS_KEY_ERROR_RESOLUTION_ACTION_INTENT,
+                pendingIntent,
+            )
+        }
+        val errorParams = MediaLibraryService.LibraryParams.Builder()
+            .setExtras(errorExtras)
+            .build()
+        val authError = SessionError(
+            SessionError.ERROR_SESSION_AUTHENTICATION_EXPIRED,
+            context.getString(LR.string.podhopper_car_signin_message),
+            Bundle.EMPTY,
+        )
+        return LibraryResult.ofError(authError, errorParams)
+    }
+
+    private companion object {
+        const val CAR_SIGN_IN_ACTION = "au.com.shiftyjelly.pocketcasts.intents.PAIR_CAR"
     }
 }

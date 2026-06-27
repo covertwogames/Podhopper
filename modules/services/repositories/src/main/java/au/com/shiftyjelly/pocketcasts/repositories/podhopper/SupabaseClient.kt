@@ -149,6 +149,84 @@ class SupabaseClient @Inject constructor(
         executeExpectingSuccess(request, retryOnAuthError = true)
     }
 
+    /**
+     * Car side of pairing, step 1. Asks the pairing edge function for a fresh code that the car
+     * displays. Authenticated with the anon key only (the car is not signed in yet). Blocking; call
+     * off the main thread. Returns the code string.
+     */
+    fun startPairing(deviceName: String): String {
+        val body = JSONObject()
+        body.put("action", "start")
+        body.put("device_name", deviceName)
+        val json = pairingCall(body)
+        return json.getString("code")
+    }
+
+    /**
+     * Car side of pairing, step 2. Polls the pairing edge function for the status of the code the
+     * car is showing. Returns the token_hash once the phone has approved, null while still pending,
+     * and throws when the code has expired. Authenticated with the anon key only. Blocking; call off
+     * the main thread.
+     */
+    fun pollPairing(code: String): String? {
+        val body = JSONObject()
+        body.put("action", "poll")
+        body.put("code", code)
+        val json = pairingCall(body)
+        val status = json.optString("status", "pending")
+        if (status == "approved") {
+            return json.getString("token_hash")
+        }
+        if (status == "expired") {
+            throw SupabaseException("PodHopper pairing code expired")
+        }
+        return null
+    }
+
+    /**
+     * Car side of pairing, step 3. Exchanges the approved token_hash for a real session through
+     * Supabase Auth (the magiclink verify endpoint, anon key, no bearer), then applies and persists
+     * that session exactly like a normal sign-in. Storing the refresh token is what flips
+     * [isLoggedIn] to true and turns sync on. Blocking; call off the main thread.
+     */
+    @Synchronized
+    fun claimPairingSession(tokenHash: String) {
+        clearSessionCache()
+        val body = JSONObject()
+        body.put("type", "magiclink")
+        body.put("token_hash", tokenHash)
+        val json = authCall("/auth/v1/verify", body)
+        applySession(json)
+        val refreshToken = json.optString("refresh_token", "")
+        if (refreshToken.isNotEmpty()) {
+            settings.podhopperRefreshToken.set(refreshToken, updateModifiedAt = false)
+        }
+        val email = json.optJSONObject("user")?.optString("email").orEmpty()
+        if (email.isNotEmpty()) {
+            settings.podhopperEmail.set(email, updateModifiedAt = false)
+        }
+    }
+
+    /**
+     * Posts to the pairing edge function with the anon key as both apikey and bearer (the calls the
+     * car makes before it has a user session). Throws on a non-success HTTP status.
+     */
+    private fun pairingCall(body: JSONObject): JSONObject {
+        val request = Request.Builder()
+            .url(PodHopperConfig.SUPABASE_URL + "/functions/v1/pairing")
+            .addHeader("apikey", PodHopperConfig.SUPABASE_ANON_KEY)
+            .addHeader("Authorization", "Bearer " + PodHopperConfig.SUPABASE_ANON_KEY)
+            .post(body.toString().toRequestBody(jsonType))
+            .build()
+        httpClient.newCall(request).execute().use { response ->
+            val responseBody = response.body.string()
+            if (!response.isSuccessful) {
+                throw SupabaseException("PodHopper pairing request failed: HTTP ${response.code} $responseBody")
+            }
+            return if (responseBody.isEmpty()) JSONObject() else JSONObject(responseBody)
+        }
+    }
+
     @Synchronized
     private fun refreshSession(refreshToken: String): String {
         val body = JSONObject()

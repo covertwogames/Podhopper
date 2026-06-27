@@ -70,6 +70,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -722,6 +724,32 @@ class MediaSessionManager(
                 onError = { Timber.e(it, "Error observing podcast subscription changes") },
             )
             .addTo(disposables)
+
+        // PodHopper: on the car only, invalidate the browse root when the PodHopper sign-in state
+        // changes. The subscriptions observer above only fires when the podcast list changes, which
+        // does not cover signing in to an account that has no shows yet, or signing out from car
+        // settings. Without this, the car can stay on the sign-in prompt after a successful sign-in,
+        // or fail to return to it after a sign-out, because the media browser only re-queries a node
+        // when it is told that node changed. Gated on automotive, so the phone and phone-projected
+        // Android Auto never start this collector and are unaffected.
+        if (Util.isAutomotive(context)) {
+            settings.podhopperRefreshToken.flow
+                .map { it.isNotEmpty() }
+                .distinctUntilChanged()
+                .drop(1)
+                .onEach {
+                    withContext(Dispatchers.Main) {
+                        media3Session?.let { session ->
+                            session.connectedControllers.forEach { controller ->
+                                session.notifyChildrenChanged(controller, MEDIA_ID_ROOT, Int.MAX_VALUE, null)
+                                session.notifyChildrenChanged(controller, PODCASTS_ROOT, Int.MAX_VALUE, null)
+                            }
+                        }
+                    }
+                }
+                .catch { Timber.e(it, "Error observing PodHopper sign-in changes") }
+                .launchIn(scope)
+        }
     }
 
     @OptIn(UnstableApi::class)

@@ -5,12 +5,10 @@ import android.os.Bundle
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
-import androidx.core.net.toUri
 import androidx.media.utils.MediaConstants.DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_BROWSABLE
 import androidx.media.utils.MediaConstants.DESCRIPTION_EXTRAS_VALUE_CONTENT_STYLE_LIST_ITEM
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
-import au.com.shiftyjelly.pocketcasts.localization.helper.tryToLocalise
 import au.com.shiftyjelly.pocketcasts.models.entity.BaseEpisode
 import au.com.shiftyjelly.pocketcasts.models.entity.Podcast
 import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
@@ -20,9 +18,8 @@ import au.com.shiftyjelly.pocketcasts.models.to.PlaylistEpisode
 import au.com.shiftyjelly.pocketcasts.models.type.PodcastsSortType
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.preferences.model.AutoPlaySource
-import au.com.shiftyjelly.pocketcasts.repositories.images.PodcastImage
-import au.com.shiftyjelly.pocketcasts.repositories.lists.ListRepository
 import au.com.shiftyjelly.pocketcasts.repositories.search.ImprovedSearchManager
+import au.com.shiftyjelly.pocketcasts.repositories.search.ItunesTopListLoader
 import au.com.shiftyjelly.pocketcasts.repositories.playback.auto.AutoConverter
 import au.com.shiftyjelly.pocketcasts.repositories.playback.auto.AutoConverter.convertFolderToMediaItem
 import au.com.shiftyjelly.pocketcasts.repositories.playback.auto.AutoConverter.convertPodcastToMediaItem
@@ -34,15 +31,16 @@ import au.com.shiftyjelly.pocketcasts.repositories.podcast.FeedParser
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.FolderManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.UserEpisodeManager
-import au.com.shiftyjelly.pocketcasts.servers.model.DisplayStyle
-import au.com.shiftyjelly.pocketcasts.servers.model.ListType
-import au.com.shiftyjelly.pocketcasts.servers.model.transformWithRegion
 import au.com.shiftyjelly.pocketcasts.utils.Util
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.rx2.awaitSingleOrNull
+import java.util.Locale
 import timber.log.Timber
 import au.com.shiftyjelly.pocketcasts.images.R as IR
 import au.com.shiftyjelly.pocketcasts.localization.R as LR
@@ -50,6 +48,7 @@ import au.com.shiftyjelly.pocketcasts.localization.R as LR
 private const val DOWNLOADS_ROOT = "__DOWNLOADS__"
 private const val FILES_ROOT = "__FILES__"
 private const val EPISODE_LIMIT = 100
+private const val DISCOVER_DISPLAY_LIMIT = 12
 private const val NUM_SUGGESTED_ITEMS = 8
 
 internal const val FILTERS_ROOT = "__FILTERS__"
@@ -68,8 +67,8 @@ class BrowseTreeProvider @Inject constructor(
     private val playlistManager: PlaylistManager,
     private val upNextQueue: UpNextQueue,
     private val settings: Settings,
-    private val listRepository: ListRepository,
     private val improvedSearchManager: ImprovedSearchManager,
+    private val itunesTopListLoader: ItunesTopListLoader,
     private val feedParser: FeedParser,
 ) {
 
@@ -456,65 +455,65 @@ class BrowseTreeProvider @Inject constructor(
         }
     }
 
+    /**
+     * PodHopper: the car Discover tile, sourced from the iTunes top-podcasts chart instead of the
+     * Pocket Casts catalogue. This reuses the exact same loader (and blocklist) the phone Discover
+     * page uses, so the car list behaves identically: a fixed buffer is fetched, blocked shows are
+     * removed, the rest is shuffled, and the requested number is returned.
+     *
+     * Each chart entry only carries an iTunes id, so its real rss feed url is resolved with a lookup
+     * call. We resolve those in parallel, then key each tile by the feed's own uuid (the id it will
+     * have once subscribed) and remember its feed url and iTunes cover in the same maps a search
+     * result uses. That makes a tapped Discover tile travel the identical subscribe-on-tap path as a
+     * tapped search result, with no change to loadEpisodeChildren. Entries whose feed cannot be
+     * resolved are dropped. Reachable on the car only (the phone Android Auto root has no Discover
+     * node), so the phone is unaffected.
+     */
     private suspend fun loadDiscoverRoot(context: Context): List<MediaItem> {
-        Timber.d("Loading discover root")
-        val discoverFeed = try {
-            listRepository.getDiscoverFeed()
+        Timber.d("Loading iTunes discover root")
+        val topPodcasts = try {
+            itunesTopListLoader.loadTopList(deviceCountry(), DISCOVER_DISPLAY_LIMIT)
         } catch (e: Exception) {
-            Timber.e(e, "Error loading discover")
+            Timber.e(e, "Error loading iTunes discover")
+            return emptyList()
+        }
+        if (topPodcasts.isEmpty()) {
             return emptyList()
         }
 
-        val region = discoverFeed.regions[discoverFeed.defaultRegionCode] ?: return emptyList()
-        val replacements = mapOf(
-            discoverFeed.regionCodeToken to region.code,
-            discoverFeed.regionNameToken to region.name,
-        )
-
-        return discoverFeed.layout.transformWithRegion(region, replacements, context.resources)
-            .filter {
-                it.type is ListType.PodcastList &&
-                    it.displayStyle !is DisplayStyle.CollectionList &&
-                    !it.sponsored &&
-                    it.authenticated == false &&
-                    it.displayStyle !is DisplayStyle.SinglePodcast
-            }
-            .mapNotNull { discoverItem ->
-                Timber.d("Loading discover feed ${discoverItem.source}")
-                listRepository.getListFeed(
-                    url = discoverItem.source,
-                    authenticated = discoverItem.authenticated,
-                )?.run {
-                    Pair(
-                        title.orEmpty().ifEmpty { discoverItem.title },
-                        podcasts?.take(6).orEmpty(),
-                    )
+        val resolved = coroutineScope {
+            topPodcasts.map { top ->
+                async {
+                    val feedUrl = itunesTopListLoader.resolveFeedUrl(top.lookupUrl)
+                    if (feedUrl.isNullOrBlank()) null else top to feedUrl
                 }
-            }
-            .flatMap { (title, podcasts) ->
-                Timber.d("Mapping $title to media item")
-                val groupTitle = title.tryToLocalise(context.resources)
-                podcasts.map {
-                    val extras = Bundle()
-                    extras.putString(EXTRA_CONTENT_STYLE_GROUP_TITLE_HINT, groupTitle)
+            }.awaitAll()
+        }.filterNotNull()
 
-                    val artworkUri = PodcastImage.getMediumArtworkUrl(uuid = it.uuid)
-                    val localUri = AutoConverter.getArtworkUriForContentProvider(artworkUri.toUri(), context)
+        return resolved.map { (top, feedUrl) ->
+            val resultUuid = feedParser.podcastUuidForFeed(feedUrl)
+            searchFeedUrls[resultUuid] = feedUrl
+            top.imageUrl?.let { searchImageUrls[resultUuid] = it }
+            val podcast = Podcast(
+                uuid = resultUuid,
+                title = top.title,
+                author = top.author,
+                podcastUrl = feedUrl,
+                thumbnailUrl = top.imageUrl,
+            )
+            convertPodcastToMediaItem(
+                context = context,
+                podcast = podcast,
+                useEpisodeArtwork = settings.artworkConfiguration.value.useEpisodeArtwork,
+                artworkUrlOverride = podcast.thumbnailUrl,
+            )
+        }
+    }
 
-                    val metadata = MediaMetadata.Builder()
-                        .setTitle(it.title)
-                        .setArtworkUri(localUri)
-                        .setIsBrowsable(true)
-                        .setIsPlayable(false)
-                        .setExtras(extras)
-                        .build()
-
-                    return@map MediaItem.Builder()
-                        .setMediaId(it.uuid)
-                        .setMediaMetadata(metadata)
-                        .build()
-                }
-            }
+    /** Two letter ISO country for the iTunes chart, matching the phone Discover page. */
+    private fun deviceCountry(): String {
+        val country = Locale.getDefault().country
+        return country.ifBlank { "US" }
     }
 
     private fun loadProfileRoot(context: Context): List<MediaItem> {

@@ -392,8 +392,24 @@ subprojects {
 
     plugins.withType<AppPlugin>().configureEach {
         configure<ApplicationExtension> {
-            defaultConfig.versionCode = project.property("versionCode") as Int
-            defaultConfig.versionName = project.property("versionName") as String
+            // PodHopper: the automotive app ships on its own Play track and must always sit +50000
+            // above the phone version so the two never collide on upload, no matter how it is built
+            // (Android Studio signing wizard included). We read the base straight from
+            // version.properties so this does not depend on any -P build flag. Just bump versionCode
+            // in version.properties as normal; the automotive bundle becomes that number + 50000 with
+            // an "a" suffix automatically.
+            if (project.name == "automotive") {
+                val baseProps = java.util.Properties().apply {
+                    rootProject.file("version.properties").inputStream().use { load(it) }
+                }
+                val baseCode = baseProps.getProperty("versionCode").toInt()
+                val baseName = baseProps.getProperty("versionName")
+                defaultConfig.versionCode = baseCode + 50000
+                defaultConfig.versionName = "${baseName}a"
+            } else {
+                defaultConfig.versionCode = project.property("versionCode") as Int
+                defaultConfig.versionName = project.property("versionName") as String
+            }
 
             lint(configureLint)
 

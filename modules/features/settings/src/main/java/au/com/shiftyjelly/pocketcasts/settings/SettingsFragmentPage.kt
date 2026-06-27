@@ -24,6 +24,7 @@ import au.com.shiftyjelly.pocketcasts.compose.preview.ThemePreviewParameterProvi
 import au.com.shiftyjelly.pocketcasts.compose.theme
 import au.com.shiftyjelly.pocketcasts.settings.about.AboutFragment
 import au.com.shiftyjelly.pocketcasts.settings.carsync.PodHopperCarSyncFragment
+import au.com.shiftyjelly.pocketcasts.settings.deleteaccount.PodHopperDeleteAccountFragment
 import au.com.shiftyjelly.pocketcasts.settings.developer.DeveloperFragment
 import au.com.shiftyjelly.pocketcasts.settings.history.HistoryFragment
 import au.com.shiftyjelly.pocketcasts.settings.notifications.NotificationsSettingsFragment
@@ -116,6 +117,9 @@ fun SettingsFragmentPage(
             }
             item {
                 AboutRow(onClick = { openFragment(AboutFragment()) })
+            }
+            item {
+                DeleteAccountRow(onClick = { openFragment(PodHopperDeleteAccountFragment()) })
             }
         }
     }
@@ -255,6 +259,15 @@ private fun AboutRow(onClick: () -> Unit) {
     SettingRow(
         primaryText = stringResource(LR.string.settings_title_about),
         icon = painterResource(SR.drawable.settings_about),
+        modifier = Modifier.rowModifier(onClick),
+    )
+}
+
+@Composable
+private fun DeleteAccountRow(onClick: () -> Unit) {
+    SettingRow(
+        primaryText = stringResource(SR.string.podhopper_delete_account_row),
+        icon = painterResource(SR.drawable.ic_baseline_warning_amber_24),
         modifier = Modifier.rowModifier(onClick),
     )
 }

@@ -382,6 +382,16 @@ class PodHopperSubscriptionSync @Inject constructor(
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
     }
 
+    /**
+     * Resets this device's subscription sync bookkeeping so a future account starts clean. Clears
+     * the pull cursor, the pending add and remove queues, and the remembered feed url mapping. With
+     * the cursor back at zero, the next sign-in does a full first-sync upload of the local library.
+     * Does not unsubscribe anything or remove any podcast from the device.
+     */
+    fun clearLocalSyncState() {
+        prefs().edit().clear().apply()
+    }
+
     companion object {
         private const val PERIODIC_SYNC_INTERVAL_MS = 30_000L
         private const val MIN_POLL_INTERVAL_MS = 1_000L

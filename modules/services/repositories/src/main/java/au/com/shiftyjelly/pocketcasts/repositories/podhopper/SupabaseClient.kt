@@ -150,6 +150,21 @@ class SupabaseClient @Inject constructor(
     }
 
     /**
+     * Deletes the signed-in user's PodHopper account. Calls the delete-account edge function, which
+     * verifies the user from the bearer token, removes their playback_state and subscriptions rows,
+     * and deletes the auth user itself. Authenticated as the user (restRequestBuilder supplies the
+     * access token). Blocking; call off the main thread. Throws on failure. Does not touch any local
+     * on-device data: the caller logs out and clears local sync bookkeeping after this succeeds.
+     */
+    fun deleteAccount() {
+        val url = PodHopperConfig.SUPABASE_URL + "/functions/v1/delete-account"
+        val request = restRequestBuilder(url)
+            .post(JSONObject().toString().toRequestBody(jsonType))
+            .build()
+        executeExpectingSuccess(request, retryOnAuthError = true)
+    }
+
+    /**
      * Car side of pairing, step 1. Asks the pairing edge function for a fresh code that the car
      * displays. Authenticated with the anon key only (the car is not signed in yet). Blocking; call
      * off the main thread. Returns the code string.

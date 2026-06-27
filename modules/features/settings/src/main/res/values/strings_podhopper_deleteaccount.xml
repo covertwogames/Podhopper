@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="podhopper_delete_account_row">Delete Account</string>
+    <string name="podhopper_delete_account_title">Delete Account</string>
+    <string name="podhopper_delete_account_warning_heading">WARNING</string>
+    <string name="podhopper_delete_account_warning_body">This will delete your PodHopper Account and all listening history.\n\nIt will not delete any local data from your device, including already downloaded podcasts.\n\nAre you sure you want to do this?</string>
+    <string name="podhopper_delete_account_confirm">Delete Account</string>
+    <string name="podhopper_delete_account_cancel">Cancel</string>
+    <string name="podhopper_delete_account_deleting">Deleting your account...</string>
+    <string name="podhopper_delete_account_error">Could not delete your account. Check your connection and try again.</string>
+</resources>

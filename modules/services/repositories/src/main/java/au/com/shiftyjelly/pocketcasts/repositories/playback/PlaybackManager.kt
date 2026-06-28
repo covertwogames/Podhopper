@@ -2220,6 +2220,16 @@ open class PlaybackManager @Inject constructor(
         return PendingIntent.getBroadcast(application, intentId, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
+    /**
+     * PodHopper: pull and apply this episode's latest cross-device position before a resume reads
+     * its start point. Exposed for the media session resumption path (the car's turn-on auto-resume),
+     * so resuming syncs the position the same way a normal play does. The work, its timeout, and the
+     * offline fallback all live in PodHopperPositionSync.
+     */
+    suspend fun applyRemotePositionBeforeResume(episode: BaseEpisode) {
+        podHopperPositionSync.applyRemotePositionBeforePlay(episode)
+    }
+
     private suspend fun play(
         sourceView: SourceView = SourceView.UNKNOWN,
         posUpdatedOnPlayerReset: Boolean = false,

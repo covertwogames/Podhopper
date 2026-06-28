@@ -134,6 +134,11 @@ internal class Media3LibrarySessionCallback(
             try {
                 val episode = playbackManager.getCurrentEpisode()
                 if (episode != null) {
+                    // PodHopper: before the car resumes on turn-on, pull this episode's latest
+                    // cross-device position and apply it, so playback continues from where you left
+                    // off on your phone rather than where this device last played. Bounded and
+                    // offline-safe inside the sync; on timeout it falls back to the local position.
+                    playbackManager.applyRemotePositionBeforeResume(episode)
                     val podcast = (episode as? PodcastEpisode)?.let {
                         podcastManager.findPodcastByUuid(it.podcastUuid)
                     }

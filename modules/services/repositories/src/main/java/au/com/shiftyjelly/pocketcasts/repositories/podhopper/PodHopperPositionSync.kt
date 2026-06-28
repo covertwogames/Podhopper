@@ -445,19 +445,6 @@ class PodHopperPositionSync @Inject constructor(
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
     }
 
-    /**
-     * Resets this device's position sync bookkeeping so a future account starts clean. Clears the
-     * pull cursor and any parked rows, which sends the cursor back to the first-sync sentinel. The
-     * install id is kept, since it identifies the device, not the account. Does not touch any
-     * episode, podcast, or playback data on the device.
-     */
-    fun clearLocalSyncState() {
-        prefs().edit()
-            .remove(PREF_LAST_PULL_MS)
-            .remove(PREF_PARKED)
-            .apply()
-    }
-
     companion object {
         private const val TABLE_PLAYBACK_STATE = "playback_state"
         private const val PREF_NAME = "podhopper_position_sync"
@@ -465,7 +452,7 @@ class PodHopperPositionSync @Inject constructor(
         private const val PREF_LAST_PULL_MS = "last_pull_ms"
         private const val PREF_PARKED = "parked_rows"
         private const val MIN_PUSH_INTERVAL_MS = 4000L
-        private const val PLAY_PULL_TIMEOUT_MS = 3000L
+        private const val PLAY_PULL_TIMEOUT_MS = 5000L
         private const val FIRST_SYNC_SENTINEL = -1L
         private const val MAX_PARKED = 500
     }

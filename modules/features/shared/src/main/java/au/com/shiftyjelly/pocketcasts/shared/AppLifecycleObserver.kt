@@ -92,8 +92,9 @@ class AppLifecycleObserver(
     override fun onStart(owner: LifecycleOwner) {
         super.onStart(owner)
         // PodHopper: pull the latest cross-device playback positions when the app comes to the
-        // foreground, so opening the app reflects progress made on other devices.
-        podHopperPositionSync.pullLatestPositions()
+        // foreground, so opening the app reflects progress made on other devices, and switch the
+        // player to the most recently played episode (when the setting is on).
+        podHopperPositionSync.pullLatestPositions(adoptCurrentEpisode = true)
         applicationScope.launch {
             blazeAdsManager.updateAds()
         }

@@ -230,6 +230,12 @@ class SettingsImpl @Inject constructor(
         sharedPrefs = sharedPreferences,
     )
 
+    override val autoSwitchPlayerToCurrentPodcast = UserSetting.BoolPref(
+        sharedPrefKey = "autoSwitchPlayerToCurrentPodcast",
+        defaultValue = true,
+        sharedPrefs = sharedPreferences,
+    )
+
     override val podcastRefreshFrequency = UserSetting.PrefFromInt(
         sharedPrefKey = "podcastRefreshFrequencyIndex",
         defaultValue = PodcastRefreshFrequency.default,

@@ -84,8 +84,9 @@ open class PlaybackService :
         super.onCreate()
 
         // PodHopper: pull the latest cross device positions before audio starts so the car
-        // resumes where the phone left off.
-        podHopperPositionSync.pullLatestPositions()
+        // resumes where the phone left off, and switch the player to the most recently played
+        // episode (when the setting is on). Covers AAOS and Android Auto, which start this service.
+        podHopperPositionSync.pullLatestPositions(adoptCurrentEpisode = true)
 
         LogBuffer.i(LogBuffer.TAG_PLAYBACK, "Playback service created")
 

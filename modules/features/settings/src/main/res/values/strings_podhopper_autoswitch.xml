@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="podhopper_auto_switch_player">Automatically switch player to current podcast</string>
+    <string name="podhopper_auto_switch_player_summary">When you open the app, switch the player to the episode you were last listening to on another device. Requires signing in.</string>
+</resources>

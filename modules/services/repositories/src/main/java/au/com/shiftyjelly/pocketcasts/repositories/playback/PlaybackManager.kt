@@ -607,6 +607,37 @@ open class PlaybackManager @Inject constructor(
         }
     }
 
+    /**
+     * PodHopper: switch the player to [episode] without starting playback, used when a more recent
+     * listening position has arrived from another device. The episode is loaded paused at its
+     * current (already synced) position. Does nothing if something is already playing on this
+     * device, or if it is already the current episode, so it never interrupts active listening.
+     */
+    suspend fun adoptCurrentEpisodeFromSync(episode: BaseEpisode) {
+        if (isPlaying()) {
+            return
+        }
+        if (upNextQueue.isCurrentEpisode(episode)) {
+            return
+        }
+        LogBuffer.i(LogBuffer.TAG_PLAYBACK, "Adopting synced episode into player: ${episode.uuid} ${episode.title}")
+        withContext(Dispatchers.IO) {
+            if (episode.isArchived) {
+                episodeManager.unarchiveBlocking(episode)
+            }
+        }
+        upNextQueue.playNow(
+            episode = episode,
+            automaticUpNextSource = null,
+            isUserInitiated = false,
+            onAdd = {
+                launch {
+                    loadCurrentEpisode(play = false)
+                }
+            },
+        )
+    }
+
     // Returning null means a source should not affect the auto play behavior. Listening history is not
     // returning null because it should actively disable auto play if a user plays an episode from the
     // listening history screen.

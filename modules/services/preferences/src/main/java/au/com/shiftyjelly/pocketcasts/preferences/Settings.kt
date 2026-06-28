@@ -314,6 +314,12 @@ interface Settings {
     fun getWorkManagerNetworkTypeConstraint(): NetworkType
     fun refreshPodcastsOnResume(isUnmetered: Boolean): Boolean
     val backgroundRefreshPodcasts: UserSetting<Boolean>
+
+    /**
+     * PodHopper: when on and signed in, foregrounding the app switches the player to the episode
+     * most recently played on another device, loaded paused at the synced position.
+     */
+    val autoSwitchPlayerToCurrentPodcast: UserSetting<Boolean>
     val podcastRefreshFrequency: UserSetting<PodcastRefreshFrequency>
     val podcastsSortType: UserSetting<PodcastsSortType>
     val prioritizeSeekAccuracy: UserSetting<Boolean>

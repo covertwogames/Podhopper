@@ -5,7 +5,9 @@ import android.content.SharedPreferences
 import android.os.Build
 import au.com.shiftyjelly.pocketcasts.coroutines.di.ApplicationScope
 import au.com.shiftyjelly.pocketcasts.models.entity.BaseEpisode
+import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
 import au.com.shiftyjelly.pocketcasts.models.type.EpisodePlayingStatus
+import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
@@ -60,6 +62,7 @@ class PodHopperPositionSync @Inject constructor(
     private val episodeManager: EpisodeManager,
     private val podcastManager: PodcastManager,
     private val playbackManager: Lazy<PlaybackManager>,
+    private val settings: Settings,
     @ApplicationContext private val context: Context,
     @ApplicationScope private val applicationScope: CoroutineScope,
 ) {
@@ -121,12 +124,14 @@ class PodHopperPositionSync @Inject constructor(
         applicationScope.launch(Dispatchers.IO) {
             try {
                 val userId = supabaseClient.getUserId() ?: return@launch
+                val feedUrl = feedUrlForEpisode(episode)
                 val row = JSONObject()
                 row.put("user_id", userId)
                 row.put("episode_key", episodeKey)
                 row.put("episode_url", episodeUrl ?: JSONObject.NULL)
                 row.put("position_sec", positionSec)
                 row.put("total_sec", totalSec)
+                row.put("feed_url", feedUrl ?: JSONObject.NULL)
                 row.put("device_id", getOrCreateInstallId())
                 row.put("device_name", Build.MODEL)
                 row.put("updated_at_ms", now)
@@ -175,6 +180,7 @@ class PodHopperPositionSync @Inject constructor(
         applicationScope.launch(Dispatchers.IO) {
             try {
                 val userId = supabaseClient.getUserId() ?: return@launch
+                val feedUrl = feedUrlForEpisode(episode)
                 val row = JSONObject()
                 row.put("user_id", userId)
                 row.put("episode_key", episodeKey)
@@ -182,6 +188,7 @@ class PodHopperPositionSync @Inject constructor(
                 row.put("position_sec", totalSec)
                 row.put("total_sec", totalSec)
                 row.put("completed", true)
+                row.put("feed_url", feedUrl ?: JSONObject.NULL)
                 row.put("device_id", getOrCreateInstallId())
                 row.put("device_name", Build.MODEL)
                 row.put("updated_at_ms", now)
@@ -193,11 +200,21 @@ class PodHopperPositionSync @Inject constructor(
     }
 
     /**
+     * The RSS feed url of the episode's podcast, or null for non podcast episodes. Carried in each
+     * push so another device can fetch and add the podcast (as not subscribed) on demand when it
+     * adopts an episode it does not have locally yet. Blocking; call off the main thread.
+     */
+    private fun feedUrlForEpisode(episode: BaseEpisode): String? {
+        val podcastEpisode = episode as? PodcastEpisode ?: return null
+        return podcastManager.findPodcastByUuidBlocking(podcastEpisode.podcastUuid)?.podcastUrl
+    }
+
+    /**
      * Pull positions and completions newer than our cursor that were written by other devices, and
      * apply them locally. Drains every page so one open fully catches up. Safe to call from any
      * thread; the work runs on the IO dispatcher.
      */
-    fun pullLatestPositions() {
+    fun pullLatestPositions(adoptCurrentEpisode: Boolean = false) {
         if (!supabaseClient.isLoggedIn()) {
             return
         }
@@ -212,8 +229,9 @@ class PodHopperPositionSync @Inject constructor(
                     prefs().edit().putLong(PREF_LAST_PULL_MS, cursor).apply()
                 }
 
+                var adoptCandidate: AdoptCandidate? = null
                 while (true) {
-                    val query = "select=episode_key,position_sec,total_sec,completed,updated_at_ms,device_id" +
+                    val query = "select=episode_key,position_sec,total_sec,completed,updated_at_ms,device_id,feed_url" +
                         "&updated_at_ms=gt.$cursor" +
                         "&device_id=neq.$installId" +
                         "&order=updated_at_ms.asc" +
@@ -223,11 +241,16 @@ class PodHopperPositionSync @Inject constructor(
                     if (count == 0) {
                         break
                     }
-                    val maxProcessed = applyRows(rows)
-                    if (maxProcessed > cursor) {
+                    val result = applyRows(rows)
+                    result.latestInProgress?.let { candidate ->
+                        if (adoptCandidate == null || candidate.updatedAtMs > adoptCandidate.updatedAtMs) {
+                            adoptCandidate = candidate
+                        }
+                    }
+                    if (result.maxTs > cursor) {
                         // Advance past everything in this page. Rows we could not apply yet are not
                         // lost: they were parked for retry, so moving the cursor is safe.
-                        cursor = maxProcessed
+                        cursor = result.maxTs
                         prefs().edit().putLong(PREF_LAST_PULL_MS, cursor).apply()
                     } else {
                         // Cursor did not advance (should not happen given the gt filter); stop
@@ -240,10 +263,40 @@ class PodHopperPositionSync @Inject constructor(
                 }
 
                 retryParkedRows()
+
+                // Switch the player to the most recently played episode from another device, but only
+                // for the foreground and service-start pulls (not, say, opening a podcast page), and
+                // only when the user has left the setting on.
+                if (adoptCurrentEpisode) {
+                    adoptCandidate?.let { maybeAdoptLatest(it) }
+                }
             } catch (e: Exception) {
                 LogBuffer.i(LogBuffer.TAG_PLAYBACK, "PodHopper position pull failed: ${e.message}")
             }
         }
+    }
+
+    private data class AdoptCandidate(val episodeKey: String, val feedUrl: String?, val updatedAtMs: Long)
+
+    private data class ApplyResult(val maxTs: Long, val latestInProgress: AdoptCandidate?)
+
+    /**
+     * Switches the player to [candidate] if the auto-switch setting is on. If the episode is not on
+     * this device yet, its podcast is fetched and added (as not subscribed) from the feed url the
+     * row carried, which makes the episode exist locally so it can be loaded. The actual player
+     * switch, with its own do-not-interrupt guards, lives in PlaybackManager.
+     */
+    private suspend fun maybeAdoptLatest(candidate: AdoptCandidate) {
+        if (!settings.autoSwitchPlayerToCurrentPodcast.value) {
+            return
+        }
+        var episode = episodeManager.findByUuid(candidate.episodeKey)
+        if (episode == null && !candidate.feedUrl.isNullOrBlank()) {
+            podcastManager.addFeedUrlAsUnsubscribed(candidate.feedUrl)
+            episode = episodeManager.findByUuid(candidate.episodeKey)
+        }
+        val target = episode ?: return
+        playbackManager.get().adoptCurrentEpisodeFromSync(target)
     }
 
     /**
@@ -299,8 +352,9 @@ class PodHopperPositionSync @Inject constructor(
 
     /** Applies every row in a page, parking those whose episode is not local yet. Returns the
      *  highest updated_at_ms seen, so the caller can advance the cursor past the whole page. */
-    private suspend fun applyRows(rows: JSONArray): Long {
+    private suspend fun applyRows(rows: JSONArray): ApplyResult {
         var maxTs = 0L
+        var latestInProgress: AdoptCandidate? = null
         for (i in 0 until rows.length()) {
             val row = rows.getJSONObject(i)
             val updatedAtMs = row.optLong("updated_at_ms", 0L)
@@ -315,8 +369,16 @@ class PodHopperPositionSync @Inject constructor(
             val totalSec = row.optInt("total_sec", 0)
             val completed = row.optBoolean("completed", false)
             applyOrPark(episodeKey, positionSec, totalSec, completed, updatedAtMs)
+
+            // Track the most recent in-progress episode as the candidate to switch the player to. A
+            // finished episode is not a now-playing, so completions are skipped.
+            val isCompletion = completed || (totalSec > 0 && positionSec >= totalSec)
+            if (!isCompletion && (latestInProgress == null || updatedAtMs > latestInProgress.updatedAtMs)) {
+                val feedUrl = row.optString("feed_url").takeIf { it.isNotEmpty() }
+                latestInProgress = AdoptCandidate(episodeKey, feedUrl, updatedAtMs)
+            }
         }
-        return maxTs
+        return ApplyResult(maxTs, latestInProgress)
     }
 
     private suspend fun applyOrPark(episodeKey: String, positionSec: Int, totalSec: Int, completed: Boolean, remoteTs: Long) {

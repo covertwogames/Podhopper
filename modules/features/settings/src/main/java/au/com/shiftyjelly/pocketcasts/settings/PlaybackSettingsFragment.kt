@@ -46,6 +46,7 @@ import au.com.shiftyjelly.pocketcasts.images.R
 import au.com.shiftyjelly.pocketcasts.models.to.PodcastGrouping
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.SupabaseClient
 import au.com.shiftyjelly.pocketcasts.settings.notification.MediaActionsFragment
 import au.com.shiftyjelly.pocketcasts.ui.helper.FragmentHostListener
 import au.com.shiftyjelly.pocketcasts.utils.extensions.pxToDp
@@ -78,6 +79,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import au.com.shiftyjelly.pocketcasts.localization.R as LR
+import au.com.shiftyjelly.pocketcasts.settings.R as SR
 
 @AndroidEntryPoint
 class PlaybackSettingsFragment : BaseFragment() {
@@ -91,6 +93,8 @@ class PlaybackSettingsFragment : BaseFragment() {
     @Inject lateinit var podcastManager: PodcastManager
 
     @Inject lateinit var eventHorizon: EventHorizon
+
+    @Inject lateinit var supabaseClient: SupabaseClient
 
     @Inject @ApplicationScope
     lateinit var applicationScope: CoroutineScope
@@ -124,6 +128,8 @@ class PlaybackSettingsFragment : BaseFragment() {
     ) {
         val listState = rememberLazyListState()
         val settingsItemsKey = SettingsItems.entries
+
+        val isLoggedIn = supabaseClient.loginState.collectAsState(initial = supabaseClient.isLoggedIn()).value
 
         val sleepTimerIndex = settingsItemsKey.indexOf(SettingsItems.SETTINGS_HEADER_SLEEP_TIMER)
         LaunchedEffect(scrollToSleepTimer) {
@@ -301,6 +307,16 @@ class PlaybackSettingsFragment : BaseFragment() {
                                         ),
                                     )
                                     settings.openPlayerAutomatically.set(isOpenPlayerEnabled, updateModifiedAt = true)
+                                },
+                            )
+                        }
+
+                        SettingsItems.SETTINGS_AUTO_SWITCH_PLAYER -> {
+                            AutoSwitchPlayer(
+                                saved = settings.autoSwitchPlayerToCurrentPodcast.flow.collectAsState().value,
+                                enabled = isLoggedIn,
+                                onSave = { value ->
+                                    settings.autoSwitchPlayerToCurrentPodcast.set(value, updateModifiedAt = true)
                                 },
                             )
                         }
@@ -559,6 +575,20 @@ class PlaybackSettingsFragment : BaseFragment() {
     )
 
     @Composable
+    private fun AutoSwitchPlayer(saved: Boolean, enabled: Boolean, onSave: (Boolean) -> Unit) = SettingRow(
+        primaryText = stringResource(SR.string.podhopper_auto_switch_player),
+        secondaryText = stringResource(SR.string.podhopper_auto_switch_player_summary),
+        toggle = SettingRowToggle.Switch(checked = saved, enabled = enabled),
+        enabled = enabled,
+        modifier = if (enabled) {
+            Modifier.toggleable(value = saved, role = Role.Switch) { onSave(!saved) }
+        } else {
+            Modifier
+        },
+        indent = false,
+    )
+
+    @Composable
     private fun IntelligentPlaybackResumption(saved: Boolean, onSave: (Boolean) -> Unit) = SettingRow(
         primaryText = stringResource(LR.string.settings_playback_resumption),
         secondaryText = stringResource(LR.string.settings_playback_resumption_summary),
@@ -674,6 +704,7 @@ private enum class SettingsItems {
     SETTINGS_SKIP_BACK_TIME,
     SETTINGS_KEEP_SCREEN_AWAKE,
     SETTINGS_OPEN_PLAYER_AUTOMATICALLY,
+    SETTINGS_AUTO_SWITCH_PLAYER,
     SETTINGS_INTELLIGENT_PLAYBACK,
     SETTINGS_PLAY_UP_NEXT_EPISODE,
     SETTINGS_ADJUST_REMAINING_TIME,

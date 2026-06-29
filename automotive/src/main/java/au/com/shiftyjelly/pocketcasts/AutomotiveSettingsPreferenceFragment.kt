@@ -36,6 +36,7 @@ class AutomotiveSettingsPreferenceFragment : PreferenceFragmentCompat() {
     private lateinit var preferenceAutoPlay: SwitchPreference
     private lateinit var preferenceAutoSubscribeToPlayed: SwitchPreference
     private lateinit var preferenceAutoShowPlayed: SwitchPreference
+    private lateinit var preferenceAutoSwitchPlayer: SwitchPreference
     private lateinit var preferenceSkipForward: EditTextPreference
     private lateinit var preferenceSkipBackward: EditTextPreference
     private lateinit var preferenceRefreshNow: Preference
@@ -47,6 +48,7 @@ class AutomotiveSettingsPreferenceFragment : PreferenceFragmentCompat() {
         preferenceAutoPlay = findPreference("autoUpNextEmpty")!!
         preferenceAutoSubscribeToPlayed = findPreference("autoSubscribeToPlayed")!!
         preferenceAutoShowPlayed = findPreference("autoShowPlayed")!!
+        preferenceAutoSwitchPlayer = findPreference("autoSwitchPlayerToCurrentPodcast")!!
         preferenceRefreshNow = findPreference("refresh_now")!!
         preferenceSkipForward = findPreference(Settings.PREFERENCE_SKIP_FORWARD)!!
         preferenceSkipBackward = findPreference(Settings.PREFERENCE_SKIP_BACKWARD)!!
@@ -55,6 +57,7 @@ class AutomotiveSettingsPreferenceFragment : PreferenceFragmentCompat() {
         setupAutoPlay()
         setupAutoSubscribeToPlayed()
         setupAutoShowPlayed()
+        setupAutoSwitchPlayer()
         setupSkipForward()
         setupSkipBackward()
         setupRefreshNow()
@@ -88,6 +91,16 @@ class AutomotiveSettingsPreferenceFragment : PreferenceFragmentCompat() {
         }
         settings.autoShowPlayed.flow
             .onEach { preferenceAutoShowPlayed.isChecked = it }
+            .launchIn(lifecycleScope)
+    }
+
+    private fun setupAutoSwitchPlayer() {
+        preferenceAutoSwitchPlayer.setOnPreferenceChangeListener { _, newValue ->
+            settings.autoSwitchPlayerToCurrentPodcast.set(newValue as Boolean, updateModifiedAt = true)
+            true
+        }
+        settings.autoSwitchPlayerToCurrentPodcast.flow
+            .onEach { preferenceAutoSwitchPlayer.isChecked = it }
             .launchIn(lifecycleScope)
     }
 

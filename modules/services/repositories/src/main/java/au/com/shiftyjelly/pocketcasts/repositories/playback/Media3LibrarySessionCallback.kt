@@ -132,7 +132,14 @@ internal class Media3LibrarySessionCallback(
         }
         scope.launch {
             try {
-                val episode = playbackManager.getCurrentEpisode()
+                // PodHopper: adopt the most recently played episode from another device BEFORE
+                // choosing what to resume, so the car loads the same episode you were on elsewhere
+                // instead of its own last one. The background pull does this on the phone, but on the
+                // car it loses the race to this one-shot resume; doing it here, before playback
+                // starts, wins. Falls back to this device's current episode when there is nothing
+                // newer, the setting is off, or it is offline.
+                val adopted = playbackManager.adoptLatestSyncedEpisodeBeforeResume()
+                val episode = adopted ?: playbackManager.getCurrentEpisode()
                 if (episode != null) {
                     // PodHopper: before the car resumes on turn-on, pull this episode's latest
                     // cross-device position and apply it, so playback continues from where you left

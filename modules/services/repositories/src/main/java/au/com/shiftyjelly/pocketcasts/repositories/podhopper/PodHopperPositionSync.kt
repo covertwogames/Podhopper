@@ -286,17 +286,79 @@ class PodHopperPositionSync @Inject constructor(
      * row carried, which makes the episode exist locally so it can be loaded. The actual player
      * switch, with its own do-not-interrupt guards, lives in PlaybackManager.
      */
-    private suspend fun maybeAdoptLatest(candidate: AdoptCandidate) {
+    private suspend fun maybeAdoptLatest(candidate: AdoptCandidate, loadIntoPlayer: Boolean = true): BaseEpisode? {
         if (!settings.autoSwitchPlayerToCurrentPodcast.value) {
-            return
+            return null
         }
         var episode = episodeManager.findByUuid(candidate.episodeKey)
         if (episode == null && !candidate.feedUrl.isNullOrBlank()) {
             podcastManager.addFeedUrlAsUnsubscribed(candidate.feedUrl)
             episode = episodeManager.findByUuid(candidate.episodeKey)
         }
-        val target = episode ?: return
-        playbackManager.get().adoptCurrentEpisodeFromSync(target)
+        val target = episode ?: return null
+        playbackManager.get().adoptCurrentEpisodeFromSync(target, loadIntoPlayer = loadIntoPlayer)
+        return target
+    }
+
+    /**
+     * Synchronously find the most recently played in-progress episode written by another device and,
+     * when the auto-switch setting is on, make it the current player episode, returning it. The car's
+     * one-shot auto-resume needs this inline, before it reads the current episode: the background
+     * pull that adopts on the phone loses the race to the car's resume and is then blocked by the
+     * "already playing" guard. Player loading is deliberately left to the resume itself
+     * (loadIntoPlayer = false), so this only sets the current episode and never runs a second,
+     * competing load. Returns null when the setting is off, nothing newer exists, or we are offline,
+     * in which case the caller resumes this device's own current episode. Time-bounded.
+     */
+    suspend fun adoptLatestForResume(): BaseEpisode? {
+        if (!supabaseClient.isLoggedIn()) {
+            return null
+        }
+        if (!settings.autoSwitchPlayerToCurrentPodcast.value) {
+            return null
+        }
+        return try {
+            withTimeoutOrNull(PLAY_PULL_TIMEOUT_MS) {
+                withContext(Dispatchers.IO) {
+                    val installId = getOrCreateInstallId()
+                    val query = "select=episode_key,feed_url,position_sec,total_sec,completed,updated_at_ms" +
+                        "&device_id=neq.$installId" +
+                        "&order=updated_at_ms.desc" +
+                        "&limit=$ADOPT_SCAN_LIMIT"
+                    val rows = supabaseClient.select(TABLE_PLAYBACK_STATE, query)
+                    val candidate = latestInProgressFrom(rows) ?: return@withContext null
+                    maybeAdoptLatest(candidate, loadIntoPlayer = false)
+                }
+            }
+        } catch (e: Exception) {
+            LogBuffer.i(LogBuffer.TAG_PLAYBACK, "PodHopper adopt-before-resume failed: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Picks the most recently played episode from a desc-ordered page of rows that is still in
+     * progress (not completed and not at or past its end). Mirrors the in-progress rule used when
+     * applying a full page, so completions never become a now-playing.
+     */
+    private fun latestInProgressFrom(rows: JSONArray): AdoptCandidate? {
+        for (i in 0 until rows.length()) {
+            val row = rows.getJSONObject(i)
+            val episodeKey = row.optString("episode_key")
+            if (episodeKey.isEmpty()) {
+                continue
+            }
+            val positionSec = row.optInt("position_sec", -1)
+            val totalSec = row.optInt("total_sec", 0)
+            val completed = row.optBoolean("completed", false)
+            val isCompletion = completed || (totalSec > 0 && positionSec >= totalSec)
+            if (isCompletion) {
+                continue
+            }
+            val feedUrl = row.optString("feed_url").takeIf { it.isNotEmpty() }
+            return AdoptCandidate(episodeKey, feedUrl, row.optLong("updated_at_ms", 0L))
+        }
+        return null
     }
 
     /**
@@ -528,6 +590,7 @@ class PodHopperPositionSync @Inject constructor(
         private const val PREF_PARKED = "parked_rows"
         private const val MIN_PUSH_INTERVAL_MS = 4000L
         private const val PLAY_PULL_TIMEOUT_MS = 5000L
+        private const val ADOPT_SCAN_LIMIT = 10
         private const val FIRST_SYNC_SENTINEL = -1L
         private const val MAX_PARKED = 500
     }

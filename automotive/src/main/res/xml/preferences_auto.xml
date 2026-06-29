@@ -16,6 +16,10 @@
             android:key="autoShowPlayed"
             android:title="@string/settings_show_played"
             android:summary="@string/settings_show_played_summary" />
+        <SwitchPreference
+            android:key="autoSwitchPlayerToCurrentPodcast"
+            android:title="@string/podhopper_auto_switch_player"
+            android:summary="@string/podhopper_auto_switch_player_summary" />
     </PreferenceCategory>
     <EditTextPreference
         android:id="@+id/edit_text_skip_forward"

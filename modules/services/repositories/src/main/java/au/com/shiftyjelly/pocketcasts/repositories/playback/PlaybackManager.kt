@@ -613,7 +613,7 @@ open class PlaybackManager @Inject constructor(
      * current (already synced) position. Does nothing if something is already playing on this
      * device, or if it is already the current episode, so it never interrupts active listening.
      */
-    suspend fun adoptCurrentEpisodeFromSync(episode: BaseEpisode) {
+    suspend fun adoptCurrentEpisodeFromSync(episode: BaseEpisode, loadIntoPlayer: Boolean = true) {
         if (isPlaying()) {
             return
         }
@@ -630,10 +630,16 @@ open class PlaybackManager @Inject constructor(
             episode = episode,
             automaticUpNextSource = null,
             isUserInitiated = false,
-            onAdd = {
-                launch {
-                    loadCurrentEpisode(play = false)
+            onAdd = if (loadIntoPlayer) {
+                {
+                    launch {
+                        loadCurrentEpisode(play = false)
+                    }
                 }
+            } else {
+                // The media session resumption path loads and plays the episode itself, so we only
+                // set it as the current episode here and skip the competing load.
+                null
             },
         )
     }
@@ -2259,6 +2265,17 @@ open class PlaybackManager @Inject constructor(
      */
     suspend fun applyRemotePositionBeforeResume(episode: BaseEpisode) {
         podHopperPositionSync.applyRemotePositionBeforePlay(episode)
+    }
+
+    /**
+     * PodHopper: find the most recently played episode from another device and adopt it as the
+     * current episode, returning it, so the car's resume loads the right episode instead of this
+     * device's last one. Returns null when there is nothing newer to adopt, the auto-switch setting
+     * is off, or we are offline, in which case the caller falls back to the current episode. The
+     * work, its bound, and the offline fallback all live in PodHopperPositionSync.
+     */
+    suspend fun adoptLatestSyncedEpisodeBeforeResume(): BaseEpisode? {
+        return podHopperPositionSync.adoptLatestForResume()
     }
 
     private suspend fun play(

@@ -25,7 +25,7 @@ internal fun PocketCastsLogo(
             modifier = GlanceModifier.size(size),
         )
         Image(
-            provider = ImageProvider(IR.drawable.ic_logo_foreground),
+            provider = ImageProvider(IR.drawable.ic_widget_logo_foreground),
             contentDescription = null,
             colorFilter = ColorFilter.tint(LocalWidgetTheme.current.logoLines),
             modifier = GlanceModifier.size(size),

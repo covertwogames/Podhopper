@@ -388,6 +388,11 @@ internal val TRANSPORT_PLAYER_COMMANDS: Player.Commands = Player.Commands.Builde
         // available commands; a controller only gets the intersection of the two sets.
         Player.COMMAND_SEEK_FORWARD,
         Player.COMMAND_SEEK_BACK,
+        // PodHopper: also grant next/previous so the car's hardware/steering-wheel skip buttons,
+        // which invoke these rather than seek-forward/back, reach the seekToNext/seekToPrevious
+        // overrides and jump 30s/10s. Must stay in sync with the player's available commands above.
+        Player.COMMAND_SEEK_TO_NEXT,
+        Player.COMMAND_SEEK_TO_PREVIOUS,
         Player.COMMAND_STOP,
         Player.COMMAND_GET_CURRENT_MEDIA_ITEM,
         Player.COMMAND_GET_METADATA,

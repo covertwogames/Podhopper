@@ -171,6 +171,12 @@ class PocketCastsForwardingPlayer(
                 // buttons did, with no second set of buttons to duplicate them.
                 Player.COMMAND_SEEK_FORWARD,
                 Player.COMMAND_SEEK_BACK,
+                // PodHopper: advertise the next/previous commands too. A car's hardware (and
+                // steering-wheel) skip buttons invoke these, not the seek-forward/back pair above.
+                // The seekToNext/seekToPrevious overrides below route them to the configured
+                // skip-forward/back, so the wheel buttons jump 30s/10s the way Audible and Libby do.
+                Player.COMMAND_SEEK_TO_NEXT,
+                Player.COMMAND_SEEK_TO_PREVIOUS,
                 Player.COMMAND_STOP,
                 Player.COMMAND_GET_CURRENT_MEDIA_ITEM,
                 Player.COMMAND_GET_METADATA,

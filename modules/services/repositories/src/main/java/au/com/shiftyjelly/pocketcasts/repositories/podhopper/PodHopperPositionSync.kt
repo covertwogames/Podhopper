@@ -3,6 +3,7 @@ package au.com.shiftyjelly.pocketcasts.repositories.podhopper
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
+import android.util.Log
 import au.com.shiftyjelly.pocketcasts.coroutines.di.ApplicationScope
 import au.com.shiftyjelly.pocketcasts.models.entity.BaseEpisode
 import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
@@ -69,6 +70,9 @@ class PodHopperPositionSync @Inject constructor(
     @Volatile
     private var lastPushAttemptMs = 0L
 
+    @Volatile
+    private var lastBrowsePullMs = 0L
+
     // Episodes the sync is applying remotely right now. The push hooks consult this so the local
     // changes a remote apply makes (a mark-as-played in particular) are not echoed back as a push.
     private val applyingUuids: MutableSet<String> = ConcurrentHashMap.newKeySet()
@@ -111,6 +115,10 @@ class PodHopperPositionSync @Inject constructor(
             return
         }
         val now = System.currentTimeMillis()
+        // Record that this device was actively playing now. The adopt guard reads this so another
+        // device's episode is only adopted when it is genuinely newer than this device's own last
+        // activity. Stamped before the throttle so periodic samples keep it fresh while playing.
+        stampLocalActivity(now)
         if (!immediate && now - lastPushAttemptMs < MIN_PUSH_INTERVAL_MS) {
             return
         }
@@ -176,6 +184,8 @@ class PodHopperPositionSync @Inject constructor(
         val episodeKey = episode.uuid
         val episodeUrl = episode.downloadUrl
         val now = System.currentTimeMillis()
+        // A completion is local activity too: keep the adopt guard's clock current.
+        stampLocalActivity(now)
 
         applicationScope.launch(Dispatchers.IO) {
             try {
@@ -276,6 +286,24 @@ class PodHopperPositionSync @Inject constructor(
         }
     }
 
+    /**
+     * Refreshes cross-device positions when the car opens a browse page, mirroring the phone's
+     * per-page pull so episode lists reflect progress from other devices. Throttled to at most one
+     * pull every [BROWSE_PULL_MIN_INTERVAL_MS], because the car requests several browse nodes in a
+     * burst when the app opens. Never adopts: navigating pages must not change what is playing.
+     */
+    fun pullForBrowse() {
+        if (!supabaseClient.isLoggedIn()) {
+            return
+        }
+        val now = System.currentTimeMillis()
+        if (now - lastBrowsePullMs < BROWSE_PULL_MIN_INTERVAL_MS) {
+            return
+        }
+        lastBrowsePullMs = now
+        pullLatestPositions(adoptCurrentEpisode = false)
+    }
+
     private data class AdoptCandidate(val episodeKey: String, val feedUrl: String?, val updatedAtMs: Long)
 
     private data class ApplyResult(val maxTs: Long, val latestInProgress: AdoptCandidate?)
@@ -290,12 +318,25 @@ class PodHopperPositionSync @Inject constructor(
         if (!settings.autoSwitchPlayerToCurrentPodcast.value) {
             return null
         }
+        // Core guard: only switch to another device's episode when that row is genuinely newer than
+        // this device's own last activity. Without this, a device cannot see its own latest play
+        // (the pull excludes its own writes) and gets yanked back to the other device's older
+        // episode. This is the same "newer than me" rule the full-page apply already uses.
+        val lastLocal = lastLocalActivityMs()
+        if (candidate.updatedAtMs <= lastLocal) {
+            Log.i(LOG_TAG, "adopt skipped: candidate ${candidate.episodeKey} ts=${candidate.updatedAtMs} not newer than local activity ts=$lastLocal")
+            return null
+        }
         var episode = episodeManager.findByUuid(candidate.episodeKey)
         if (episode == null && !candidate.feedUrl.isNullOrBlank()) {
             podcastManager.addFeedUrlAsUnsubscribed(candidate.feedUrl)
             episode = episodeManager.findByUuid(candidate.episodeKey)
         }
-        val target = episode ?: return null
+        val target = episode ?: run {
+            Log.i(LOG_TAG, "adopt skipped: episode ${candidate.episodeKey} not resolvable locally")
+            return null
+        }
+        Log.i(LOG_TAG, "adopting episode ${target.uuid} ts=${candidate.updatedAtMs} (local activity ts=$lastLocal), loadIntoPlayer=$loadIntoPlayer")
         playbackManager.get().adoptCurrentEpisodeFromSync(target, loadIntoPlayer = loadIntoPlayer)
         return target
     }
@@ -326,7 +367,11 @@ class PodHopperPositionSync @Inject constructor(
                         "&order=updated_at_ms.desc" +
                         "&limit=$ADOPT_SCAN_LIMIT"
                     val rows = supabaseClient.select(TABLE_PLAYBACK_STATE, query)
-                    val candidate = latestInProgressFrom(rows) ?: return@withContext null
+                    val candidate = latestInProgressFrom(rows)
+                    if (candidate == null) {
+                        Log.i(LOG_TAG, "adopt-before-resume: no in-progress episode from another device")
+                        return@withContext null
+                    }
                     maybeAdoptLatest(candidate, loadIntoPlayer = false)
                 }
             }
@@ -376,18 +421,34 @@ class PodHopperPositionSync @Inject constructor(
             val outcome = withTimeoutOrNull(PLAY_PULL_TIMEOUT_MS) {
                 withContext(Dispatchers.IO) {
                     val installId = getOrCreateInstallId()
+                    // Newest other-device row for this episode. Ordered so "limit 1" is deterministic.
                     val query = "select=position_sec,total_sec,updated_at_ms,device_id" +
                         "&episode_key=eq.${episode.uuid}" +
                         "&device_id=neq.$installId" +
+                        "&order=updated_at_ms.desc" +
                         "&limit=1"
                     val rows = supabaseClient.select(TABLE_PLAYBACK_STATE, query)
                     if (rows.length() == 0) {
+                        Log.i(LOG_TAG, "play-pull ${episode.uuid}: no other-device row, keeping local")
                         PlayPullResult.NONE
                     } else {
-                        val positionSec = rows.getJSONObject(0).optInt("position_sec", -1)
+                        val row = rows.getJSONObject(0)
+                        val positionSec = row.optInt("position_sec", -1)
+                        val remoteTs = row.optLong("updated_at_ms", 0L)
                         if (positionSec < 0) {
                             PlayPullResult.NONE
                         } else {
+                            // Freshest writer wins. There is one playback_state row per episode,
+                            // overwritten by whoever played it last, and its updated_at_ms is stamped by
+                            // the database, not by any device's clock. A row that belongs to another
+                            // device is therefore the freshest write for this episode, so adopt it, even
+                            // if it moves the position backward (a deliberate rewind on another device
+                            // should follow you here). When the latest write is ours, the device_id filter
+                            // returns no row and we keep our own local position. No clock comparison: the
+                            // old localModified vs remoteTs guard compared a local time that merely pressing
+                            // play refreshed against another device's time, so it wrongly kept local almost
+                            // every time.
+                            Log.i(LOG_TAG, "play-pull ${episode.uuid}: applying freshest remote pos=${positionSec}s remoteTs=$remoteTs")
                             episodeManager.updatePlayedUpToBlocking(episode, positionSec.toDouble(), forceUpdate = true)
                             PlayPullResult.APPLIED
                         }
@@ -569,27 +630,44 @@ class PodHopperPositionSync @Inject constructor(
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
     }
 
+    /** Records the time of this device's most recent local playback activity (monotonic; never moves back). */
+    private fun stampLocalActivity(ms: Long) {
+        val current = prefs().getLong(PREF_LAST_LOCAL_ACTIVITY_MS, 0L)
+        if (ms > current) {
+            prefs().edit().putLong(PREF_LAST_LOCAL_ACTIVITY_MS, ms).apply()
+        }
+    }
+
+    /** This device's most recent local playback activity time, or 0 if it has none yet. */
+    private fun lastLocalActivityMs(): Long {
+        return prefs().getLong(PREF_LAST_LOCAL_ACTIVITY_MS, 0L)
+    }
+
     /**
      * Resets this device's position sync bookkeeping so a future account starts clean. Clears the
-     * pull cursor and any parked rows, which sends the cursor back to the first-sync sentinel. The
-     * install id is kept, since it identifies the device, not the account. Does not touch any
-     * episode, podcast, or playback data on the device.
+     * pull cursor, any parked rows, and the local-activity clock, which sends the cursor back to the
+     * first-sync sentinel. The install id is kept, since it identifies the device, not the account.
+     * Does not touch any episode, podcast, or playback data on the device.
      */
     fun clearLocalSyncState() {
         prefs().edit()
             .remove(PREF_LAST_PULL_MS)
             .remove(PREF_PARKED)
+            .remove(PREF_LAST_LOCAL_ACTIVITY_MS)
             .apply()
     }
 
     companion object {
+        private const val LOG_TAG = "PodHopperSync"
         private const val TABLE_PLAYBACK_STATE = "playback_state"
         private const val PREF_NAME = "podhopper_position_sync"
         private const val PREF_INSTALL_ID = "install_id"
         private const val PREF_LAST_PULL_MS = "last_pull_ms"
         private const val PREF_PARKED = "parked_rows"
+        private const val PREF_LAST_LOCAL_ACTIVITY_MS = "last_local_activity_ms"
         private const val MIN_PUSH_INTERVAL_MS = 4000L
         private const val PLAY_PULL_TIMEOUT_MS = 5000L
+        private const val BROWSE_PULL_MIN_INTERVAL_MS = 10000L
         private const val ADOPT_SCAN_LIMIT = 10
         private const val FIRST_SYNC_SENTINEL = -1L
         private const val MAX_PARKED = 500

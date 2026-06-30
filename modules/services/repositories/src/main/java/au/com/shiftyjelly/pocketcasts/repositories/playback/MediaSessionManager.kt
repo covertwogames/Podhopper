@@ -766,6 +766,11 @@ class MediaSessionManager(
             if (allButtons != lastCustomLayout) {
                 lastCustomLayout = allButtons
                 session.setCustomLayout(allButtons)
+                // PodHopper: setMediaButtonPreferences is the API that fills the car's transport
+                // slots (central, forward, backward). setCustomLayout alone only populates the
+                // custom/overflow area, so the seek buttons must also go through here to land in the
+                // forward and backward slots and pick up the hardware/steering-wheel keys.
+                session.setMediaButtonPreferences(allButtons)
             }
             return
         } else {

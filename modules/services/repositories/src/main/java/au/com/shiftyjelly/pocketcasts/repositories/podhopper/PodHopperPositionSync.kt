@@ -338,7 +338,7 @@ class PodHopperPositionSync @Inject constructor(
 
     private data class AdoptCandidate(val episodeKey: String, val feedUrl: String?, val updatedAtMs: Long)
 
-    private data class ApplyResult(val maxTs: Long, val latestInProgress: AdoptCandidate?)
+    private data class ApplyResult(val maxTs: Long)
 
     /**
      * Switches the player to [candidate] if the auto-switch setting is on. If the episode is not on
@@ -510,7 +510,6 @@ class PodHopperPositionSync @Inject constructor(
      *  highest updated_at_ms seen, so the caller can advance the cursor past the whole page. */
     private suspend fun applyRows(rows: JSONArray): ApplyResult {
         var maxTs = 0L
-        var latestInProgress: AdoptCandidate? = null
         for (i in 0 until rows.length()) {
             val row = rows.getJSONObject(i)
             val updatedAtMs = row.optLong("updated_at_ms", 0L)
@@ -525,16 +524,8 @@ class PodHopperPositionSync @Inject constructor(
             val totalSec = row.optInt("total_sec", 0)
             val completed = row.optBoolean("completed", false)
             applyOrPark(episodeKey, positionSec, totalSec, completed, updatedAtMs)
-
-            // Track the most recent in-progress episode as the candidate to switch the player to. A
-            // finished episode is not a now-playing, so completions are skipped.
-            val isCompletion = completed || (totalSec > 0 && positionSec >= totalSec)
-            if (!isCompletion && (latestInProgress == null || updatedAtMs > latestInProgress.updatedAtMs)) {
-                val feedUrl = row.optString("feed_url").takeIf { it.isNotEmpty() }
-                latestInProgress = AdoptCandidate(episodeKey, feedUrl, updatedAtMs)
-            }
         }
-        return ApplyResult(maxTs, latestInProgress)
+        return ApplyResult(maxTs)
     }
 
     private suspend fun applyOrPark(episodeKey: String, positionSec: Int, totalSec: Int, completed: Boolean, remoteTs: Long) {

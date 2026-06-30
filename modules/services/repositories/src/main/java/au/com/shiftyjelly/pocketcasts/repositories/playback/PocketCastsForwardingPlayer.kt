@@ -164,6 +164,13 @@ class PocketCastsForwardingPlayer(
                 Player.COMMAND_PLAY_PAUSE,
                 Player.COMMAND_SET_MEDIA_ITEM,
                 Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
+                // PodHopper: advertise the standard seek-forward/back commands so Android Automotive
+                // (and Android Auto) draw their own seek buttons and bind the hardware/steering-wheel
+                // fast-forward/rewind keys to them. The overrides below route both to the configured
+                // skip-forward/back, so the standard controls do the same thing the old custom skip
+                // buttons did, with no second set of buttons to duplicate them.
+                Player.COMMAND_SEEK_FORWARD,
+                Player.COMMAND_SEEK_BACK,
                 Player.COMMAND_STOP,
                 Player.COMMAND_GET_CURRENT_MEDIA_ITEM,
                 Player.COMMAND_GET_METADATA,
@@ -187,6 +194,16 @@ class PocketCastsForwardingPlayer(
 
     override fun seekToPrevious() {
         onSkipBack?.invoke() ?: super.seekToPrevious()
+    }
+
+    override fun seekForward() {
+        // The car's forward-seek control and the fast-forward hardware/steering-wheel key do the
+        // configured skip-forward, matching the old custom skip-forward button.
+        onSkipForward?.invoke() ?: super.seekForward()
+    }
+
+    override fun seekBack() {
+        onSkipBack?.invoke() ?: super.seekBack()
     }
 
     override fun stop() {

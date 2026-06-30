@@ -382,6 +382,12 @@ internal val TRANSPORT_PLAYER_COMMANDS: Player.Commands = Player.Commands.Builde
         Player.COMMAND_PLAY_PAUSE,
         Player.COMMAND_SET_MEDIA_ITEM,
         Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
+        // PodHopper: grant the standard seek-forward/back commands to controllers (the built-in car
+        // system and Android Auto) so their transport controls and hardware keys can invoke them.
+        // The player routes both to the configured skip-forward/back. Must match the player's own
+        // available commands; a controller only gets the intersection of the two sets.
+        Player.COMMAND_SEEK_FORWARD,
+        Player.COMMAND_SEEK_BACK,
         Player.COMMAND_STOP,
         Player.COMMAND_GET_CURRENT_MEDIA_ITEM,
         Player.COMMAND_GET_METADATA,

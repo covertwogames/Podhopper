@@ -155,8 +155,10 @@ internal class Media3SessionCallback(
                     future.set(listOf(resolvedItem))
 
                     if (playbackManager.getCurrentEpisode()?.uuid == episode.uuid) {
+                        android.util.Log.i("PodHopperResumeDbg", "onAddMediaItems: PLAY QUEUE (already current) episode=${episode.uuid} title='${episode.title}' mediaId=$mediaId")
                         playbackManager.playQueueSuspend(sourceView = source)
                     } else {
+                        android.util.Log.i("PodHopperResumeDbg", "onAddMediaItems: PLAY NOW (new) episode=${episode.uuid} title='${episode.title}' current=${playbackManager.getCurrentEpisode()?.uuid} mediaId=$mediaId")
                         playbackManager.playNowSync(episode = episode, sourceView = source)
                     }
                 } catch (e: Exception) {

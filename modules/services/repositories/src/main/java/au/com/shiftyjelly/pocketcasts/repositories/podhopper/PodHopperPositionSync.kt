@@ -233,9 +233,12 @@ class PodHopperPositionSync @Inject constructor(
                 val installId = getOrCreateInstallId()
                 var cursor = prefs().getLong(PREF_LAST_PULL_MS, FIRST_SYNC_SENTINEL)
                 if (cursor == FIRST_SYNC_SENTINEL) {
-                    // First sync on this device: adopt "now" so we resume current state instead of
-                    // replaying the entire history oldest-first over many opens.
-                    cursor = System.currentTimeMillis()
+                    // First sync on this device: start from the database's own newest timestamp, which
+                    // is server time, the one clock every device shares, rather than this device's
+                    // clock. A device whose clock runs ahead would otherwise seed the cursor past rows
+                    // it has never seen and skip them forever. We begin watching from now in server
+                    // time; we do not replay the whole history.
+                    cursor = latestServerTs(onlyThisDevice = false)
                     prefs().edit().putLong(PREF_LAST_PULL_MS, cursor).apply()
                 }
 
@@ -318,13 +321,14 @@ class PodHopperPositionSync @Inject constructor(
         if (!settings.autoSwitchPlayerToCurrentPodcast.value) {
             return null
         }
-        // Core guard: only switch to another device's episode when that row is genuinely newer than
-        // this device's own last activity. Without this, a device cannot see its own latest play
-        // (the pull excludes its own writes) and gets yanked back to the other device's older
-        // episode. This is the same "newer than me" rule the full-page apply already uses.
-        val lastLocal = lastLocalActivityMs()
-        if (candidate.updatedAtMs <= lastLocal) {
-            Log.i(LOG_TAG, "adopt skipped: candidate ${candidate.episodeKey} ts=${candidate.updatedAtMs} not newer than local activity ts=$lastLocal")
+        // Core guard, in server time: only switch to another device's episode when that row is newer
+        // than this device's own most recent write. Both timestamps are stamped by the database, so
+        // this compares one clock to itself, never two device clocks. Without it a device gets yanked
+        // back to another device's older episode, because the pull excludes this device's own writes
+        // and so the page alone cannot tell that this device is the fresher one.
+        val myLatest = latestServerTs(onlyThisDevice = true)
+        if (candidate.updatedAtMs <= myLatest) {
+            Log.i(LOG_TAG, "adopt skipped: candidate ${candidate.episodeKey} ts=${candidate.updatedAtMs} not newer than my latest write ts=$myLatest")
             return null
         }
         var episode = episodeManager.findByUuid(candidate.episodeKey)
@@ -336,7 +340,7 @@ class PodHopperPositionSync @Inject constructor(
             Log.i(LOG_TAG, "adopt skipped: episode ${candidate.episodeKey} not resolvable locally")
             return null
         }
-        Log.i(LOG_TAG, "adopting episode ${target.uuid} ts=${candidate.updatedAtMs} (local activity ts=$lastLocal), loadIntoPlayer=$loadIntoPlayer")
+        Log.i(LOG_TAG, "adopting episode ${target.uuid} ts=${candidate.updatedAtMs} (my latest write ts=$myLatest), loadIntoPlayer=$loadIntoPlayer")
         playbackManager.get().adoptCurrentEpisodeFromSync(target, loadIntoPlayer = loadIntoPlayer)
         return target
     }
@@ -512,18 +516,13 @@ class PodHopperPositionSync @Inject constructor(
             parkRow(episodeKey, positionSec, totalSec, completed, remoteTs)
             return
         }
-        applyOne(episode, positionSec, totalSec, completed, remoteTs)
+        applyOne(episode, positionSec, totalSec, completed)
     }
 
-    private fun applyOne(episode: BaseEpisode, positionSec: Int, totalSec: Int, completed: Boolean, remoteTs: Long) {
-        // Guard 1: never apply a remote change older than this device's own last change. This stops
-        // a stale row from rewinding progress or undoing a newer local completion.
-        val localModified = maxOf(episode.playedUpToModified ?: 0L, episode.playingStatusModified ?: 0L)
-        if (localModified > remoteTs) {
-            return
-        }
-
-        // Guard 2: never overwrite the episode actively playing on this device right now.
+    private fun applyOne(episode: BaseEpisode, positionSec: Int, totalSec: Int, completed: Boolean) {
+        // Freshest writer wins: this row is another device's write to the episode's single shared row,
+        // so it is the latest state by the database's own clock. The one thing we will not stomp is the
+        // episode this device is actively playing right now; its position reconciles on the next play.
         val manager = playbackManager.get()
         if (episode.uuid == manager.getCurrentEpisode()?.uuid && manager.isPlaying()) {
             return
@@ -592,7 +591,6 @@ class PodHopperPositionSync @Inject constructor(
                 positionSec = entry.optInt("p", -1),
                 totalSec = entry.optInt("t", 0),
                 completed = entry.optBoolean("c", false),
-                remoteTs = entry.optLong("u", 0L),
             )
             parked.remove(episodeKey)
             changed = true
@@ -638,9 +636,19 @@ class PodHopperPositionSync @Inject constructor(
         }
     }
 
-    /** This device's most recent local playback activity time, or 0 if it has none yet. */
-    private fun lastLocalActivityMs(): Long {
-        return prefs().getLong(PREF_LAST_LOCAL_ACTIVITY_MS, 0L)
+    /**
+     * The newest updated_at_ms the database holds for this user, optionally limited to this device's
+     * own writes. These timestamps are stamped by Supabase, so they are the one clock every device
+     * shares. Returns 0 when there is no matching row. Blocking; call from the IO dispatcher.
+     */
+    private fun latestServerTs(onlyThisDevice: Boolean): Long {
+        val deviceClause = if (onlyThisDevice) "&device_id=eq.${getOrCreateInstallId()}" else ""
+        val query = "select=updated_at_ms$deviceClause&order=updated_at_ms.desc&limit=1"
+        val rows = supabaseClient.select(TABLE_PLAYBACK_STATE, query)
+        if (rows.length() == 0) {
+            return 0L
+        }
+        return rows.getJSONObject(0).optLong("updated_at_ms", 0L)
     }
 
     /**

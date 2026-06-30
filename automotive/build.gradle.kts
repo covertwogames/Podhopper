@@ -86,6 +86,7 @@ dependencies {
     implementation(libs.fragment.compose)
     implementation(libs.guava)
     implementation(libs.hilt.work)
+    implementation(libs.lifecycle.process)
     implementation(libs.lifecycle.reactivestreams.ktx)
     implementation(libs.material)
     implementation(libs.material.progressbar)

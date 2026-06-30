@@ -251,6 +251,10 @@ internal class Media3LibrarySessionCallback(
         if (Util.isAutomotive(context) && settings.podhopperRefreshToken.value.isEmpty()) {
             return Futures.immediateFuture(buildCarSignInRequiredResult(context))
         }
+        // PodHopper: refresh cross-device positions when the car opens a browse page, so episode
+        // lists reflect progress made on other devices. Throttled and login-gated inside the sync,
+        // and it never adopts: navigating pages must not change what is playing.
+        playbackManager.pullPositionsForBrowse()
         val future = SettableFuture.create<LibraryResult<ImmutableList<MediaItem>>>()
         scope.launch {
             try {

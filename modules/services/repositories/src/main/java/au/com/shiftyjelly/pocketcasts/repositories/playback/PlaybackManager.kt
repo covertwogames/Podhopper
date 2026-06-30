@@ -2278,6 +2278,14 @@ open class PlaybackManager @Inject constructor(
         return podHopperPositionSync.adoptLatestForResume()
     }
 
+    /**
+     * PodHopper: refresh cross-device positions when the car browses to a page. Delegates to the
+     * sync's own throttle and login gate; never adopts an episode.
+     */
+    fun pullPositionsForBrowse() {
+        podHopperPositionSync.pullForBrowse()
+    }
+
     private suspend fun play(
         sourceView: SourceView = SourceView.UNKNOWN,
         posUpdatedOnPlayerReset: Boolean = false,

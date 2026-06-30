@@ -71,3 +71,4 @@ developer.properties
 .claude/settings.local.json
 
 app/src/main/assets/discover_blocklist.txt
+automotive/src/main/assets/discover_blocklist.txt

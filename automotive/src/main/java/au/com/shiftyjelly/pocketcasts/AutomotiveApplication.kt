@@ -6,6 +6,9 @@ import android.app.UiModeManager
 import android.util.Log
 import androidx.core.content.getSystemService
 import androidx.hilt.work.HiltWorkerFactory
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
 import au.com.shiftyjelly.pocketcasts.analytics.AnalyticsController
 import au.com.shiftyjelly.pocketcasts.analytics.experiments.ExperimentProvider
@@ -16,6 +19,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadStatusObserv
 import au.com.shiftyjelly.pocketcasts.repositories.jobs.VersionMigrationsWorker
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.UserEpisodeManager
+import au.com.shiftyjelly.pocketcasts.repositories.podhopper.PodHopperPositionSync
 import au.com.shiftyjelly.pocketcasts.repositories.refresh.RefreshPodcastsTask
 import au.com.shiftyjelly.pocketcasts.repositories.stats.PlaybackStatsSyncWorker
 import au.com.shiftyjelly.pocketcasts.repositories.user.UserManager
@@ -48,6 +52,8 @@ class AutomotiveApplication :
     @Inject lateinit var moshi: Moshi
 
     @Inject lateinit var playbackManager: PlaybackManager
+
+    @Inject lateinit var podHopperPositionSync: PodHopperPositionSync
 
     @Inject lateinit var downloadStatusObserver: DownloadStatusObserver
 
@@ -84,6 +90,7 @@ class AutomotiveApplication :
         setupLogging()
         setupAnalytics()
         setupApp()
+        setupForegroundSync()
     }
 
     override val workManagerConfiguration: Configuration
@@ -114,7 +121,6 @@ class AutomotiveApplication :
 
         userEpisodeManager.monitorUploads(applicationContext)
         downloadStatusObserver.monitorDownloadStatus()
-        userManager.beginMonitoringAccountManager(playbackManager)
 
         // force the Automotive app into car mode as some car companies send the UI mode as normal, this makes sure the car resources such as layout-car are used.
         this.getSystemService<UiModeManager>()?.enableCarMode(0)
@@ -126,6 +132,23 @@ class AutomotiveApplication :
     override fun onTerminate() {
         super.onTerminate()
         Log.d(Settings.LOG_TAG_AUTO, "Terminate")
+    }
+
+    /**
+     * PodHopper: pull the latest cross-device positions when the car app comes to the foreground,
+     * and switch to the most recently played cross-device episode when it is genuinely newer (the
+     * adopt guard lives in the sync). The phone does this through AppLifecycleObserver, but the car
+     * does not run that observer (it also drives ads and promo notifications), so register a minimal
+     * process-lifecycle observer here that does only the pull.
+     */
+    private fun setupForegroundSync() {
+        ProcessLifecycleOwner.get().lifecycle.addObserver(
+            object : DefaultLifecycleObserver {
+                override fun onStart(owner: LifecycleOwner) {
+                    podHopperPositionSync.pullLatestPositions(adoptCurrentEpisode = true)
+                }
+            },
+        )
     }
 
     private fun setupRemoteLogging() {

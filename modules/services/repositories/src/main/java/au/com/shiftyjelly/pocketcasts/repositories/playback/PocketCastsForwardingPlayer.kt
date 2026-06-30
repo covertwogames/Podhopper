@@ -184,6 +184,21 @@ class PocketCastsForwardingPlayer(
             .build()
     }
 
+    // PodHopper: getAvailableCommands() above advertises seek-to-next/previous so the car publishes
+    // forward/back transport controls. isCommandAvailable must agree, or Media3's skip handler
+    // (onSkipToNext/onSkipToPrevious) sees the command as unavailable, and falls back to
+    // seekToNextMediaItem/seekToPreviousMediaItem (no next item, so nothing happens) instead of the
+    // seekToNext/seekToPrevious overrides below. Force these two true; leave the rest to the
+    // wrapped player.
+    override fun isCommandAvailable(command: Int): Boolean {
+        return when (command) {
+            Player.COMMAND_SEEK_TO_NEXT,
+            Player.COMMAND_SEEK_TO_PREVIOUS,
+            -> true
+            else -> super.isCommandAvailable(command)
+        }
+    }
+
     override fun seekTo(positionMs: Long) {
         onSeekTo?.invoke(positionMs)
         super.seekTo(positionMs)

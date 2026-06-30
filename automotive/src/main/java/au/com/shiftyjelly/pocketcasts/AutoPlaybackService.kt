@@ -8,6 +8,10 @@ import au.com.shiftyjelly.pocketcasts.repositories.refresh.RefreshPodcastsTask
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 @AndroidEntryPoint
@@ -18,6 +22,8 @@ class AutoPlaybackService : PlaybackService() {
 
     @Inject
     lateinit var podHopperSubscriptionSync: PodHopperSubscriptionSync
+
+    private var reconcileJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -32,6 +38,17 @@ class AutoPlaybackService : PlaybackService() {
         // signed out, so calling it here unconditionally is safe.
         podHopperSubscriptionSync.startPeriodicSync()
 
+        // PodHopper: while the car media session is alive, reconcile the now-playing window to the
+        // freshest across devices every 30s. This covers the "sitting in the car, paused, and the
+        // phone played something" case, where no connect or browse callback fires. The reconcile is
+        // quiet and login-gated, and never changes the episode while actively playing.
+        reconcileJob = applicationScope.launch {
+            while (isActive) {
+                delay(NOW_PLAYING_RECONCILE_INTERVAL_MS)
+                playbackManager.reconcileNowPlaying()
+            }
+        }
+
         Timber.d("Auto playback service created")
     }
 
@@ -42,6 +59,14 @@ class AutoPlaybackService : PlaybackService() {
         // PodHopper: stop the subscription poll loop started in onCreate.
         podHopperSubscriptionSync.stopPeriodicSync()
 
+        // PodHopper: stop the now-playing reconcile loop started in onCreate.
+        reconcileJob?.cancel()
+        reconcileJob = null
+
         playbackManager.pause(transientLoss = false, sourceView = SourceView.AUTO_PAUSE)
+    }
+
+    companion object {
+        private const val NOW_PLAYING_RECONCILE_INTERVAL_MS = 30_000L
     }
 }

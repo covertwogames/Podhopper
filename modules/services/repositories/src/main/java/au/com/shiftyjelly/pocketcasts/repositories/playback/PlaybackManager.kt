@@ -2286,6 +2286,10 @@ open class PlaybackManager @Inject constructor(
         podHopperPositionSync.pullForBrowse()
     }
 
+    fun reconcileNowPlaying() {
+        podHopperPositionSync.reconcileNowPlaying()
+    }
+
     private suspend fun play(
         sourceView: SourceView = SourceView.UNKNOWN,
         posUpdatedOnPlayerReset: Boolean = false,

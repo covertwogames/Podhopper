@@ -21,7 +21,10 @@ import au.com.shiftyjelly.pocketcasts.utils.getVersionCode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class AppLifecycleObserver(
@@ -72,6 +75,8 @@ class AppLifecycleObserver(
         podHopperPositionSync = podHopperPositionSync,
     )
 
+    private var reconcileJob: Job? = null
+
     fun setup() {
         appLifecycleOwner.lifecycle.addObserver(this)
         appLifecycleOwner.lifecycle.addObserver(appLifecycleProviderImpl)
@@ -91,13 +96,31 @@ class AppLifecycleObserver(
 
     override fun onStart(owner: LifecycleOwner) {
         super.onStart(owner)
-        // PodHopper: pull the latest cross-device playback positions when the app comes to the
-        // foreground, so opening the app reflects progress made on other devices, and switch the
-        // player to the most recently played episode (when the setting is on).
-        podHopperPositionSync.pullLatestPositions(adoptCurrentEpisode = true)
+        // PodHopper: reconcile the now-playing window when the app comes to the foreground, so
+        // opening the app reflects progress made on other devices and switches the player to the
+        // most recently played episode (when the setting is on and not actively playing).
+        podHopperPositionSync.reconcileNowPlaying()
+        // PodHopper: while the app stays in the foreground, keep the now-playing window in sync by
+        // reconciling every RECONCILE_INTERVAL_MS. The reconcile is quiet (it updates the episode
+        // and position only when not actively playing, and never forces the player open) and stops
+        // when the app leaves the foreground (onStop cancels the job).
+        reconcileJob?.cancel()
+        reconcileJob = applicationScope.launch {
+            while (isActive) {
+                delay(RECONCILE_INTERVAL_MS)
+                podHopperPositionSync.reconcileNowPlaying()
+            }
+        }
         applicationScope.launch {
             blazeAdsManager.updateAds()
         }
+    }
+
+    override fun onStop(owner: LifecycleOwner) {
+        super.onStop(owner)
+        // PodHopper: stop the foreground reconcile timer when the app leaves the foreground.
+        reconcileJob?.cancel()
+        reconcileJob = null
     }
 
     override fun onResume(owner: LifecycleOwner) {
@@ -177,4 +200,8 @@ class AppLifecycleObserver(
 
     @VisibleForTesting
     fun getAppPlatform() = Util.getAppPlatform(appContext)
+
+    companion object {
+        private const val RECONCILE_INTERVAL_MS = 30_000L
+    }
 }

@@ -72,6 +72,11 @@ internal class Media3LibrarySessionCallback(
         }
         if (!controller.packageName.contains("au.com.shiftyjelly.pocketcasts")) {
             LogBuffer.i(LogBuffer.TAG_PLAYBACK, "Client: ${controller.packageName} connected to media session")
+            // PodHopper: an external controller attaching (the built-in car system or phone-projected
+            // Android Auto) is the signal that something is about to display our now-playing state, so
+            // reconcile it to the freshest across devices. Throttled and login-gated inside the sync,
+            // and it never changes the episode while actively playing.
+            playbackManager.reconcileNowPlaying()
             val context = contextProvider()
             if (Util.isAutomotive(context) && !settings.automotiveConnectedToMediaSession()) {
                 scope.launch {

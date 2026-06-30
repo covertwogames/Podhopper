@@ -72,6 +72,7 @@ class PodHopperPositionSync @Inject constructor(
 
     @Volatile
     private var lastBrowsePullMs = 0L
+    private var lastReconcileMs = 0L
 
     // Episodes the sync is applying remotely right now. The push hooks consult this so the local
     // changes a remote apply makes (a mark-as-played in particular) are not echoed back as a push.
@@ -242,7 +243,6 @@ class PodHopperPositionSync @Inject constructor(
                     prefs().edit().putLong(PREF_LAST_PULL_MS, cursor).apply()
                 }
 
-                var adoptCandidate: AdoptCandidate? = null
                 while (true) {
                     val query = "select=episode_key,position_sec,total_sec,completed,updated_at_ms,device_id,feed_url" +
                         "&updated_at_ms=gt.$cursor" +
@@ -255,11 +255,6 @@ class PodHopperPositionSync @Inject constructor(
                         break
                     }
                     val result = applyRows(rows)
-                    result.latestInProgress?.let { candidate ->
-                        if (adoptCandidate == null || candidate.updatedAtMs > adoptCandidate.updatedAtMs) {
-                            adoptCandidate = candidate
-                        }
-                    }
                     if (result.maxTs > cursor) {
                         // Advance past everything in this page. Rows we could not apply yet are not
                         // lost: they were parked for retry, so moving the cursor is safe.
@@ -277,11 +272,18 @@ class PodHopperPositionSync @Inject constructor(
 
                 retryParkedRows()
 
-                // Switch the player to the most recently played episode from another device, but only
-                // for the foreground and service-start pulls (not, say, opening a podcast page), and
-                // only when the user has left the setting on.
-                if (adoptCurrentEpisode) {
-                    adoptCandidate?.let { maybeAdoptLatest(it) }
+                // Switch the player to the most recently played episode from another device. This
+                // uses the same direct "freshest row across devices" query the resume path uses,
+                // rather than only the rows newer than the pull cursor, so a reconcile triggered
+                // after the cursor has already advanced past the other device's write still finds
+                // it. Guarded so it never changes the now-playing episode while this device is
+                // actively playing; the setting gate lives inside adoptLatestForResume. When an
+                // episode is adopted, its synced position is applied so the player window reflects it.
+                if (adoptCurrentEpisode && !playbackManager.get().isPlaying()) {
+                    val adopted = adoptLatestForResume(loadIntoPlayer = true)
+                    if (adopted != null) {
+                        applyRemotePositionBeforePlay(adopted)
+                    }
                 }
             } catch (e: Exception) {
                 LogBuffer.i(LogBuffer.TAG_PLAYBACK, "PodHopper position pull failed: ${e.message}")
@@ -293,7 +295,9 @@ class PodHopperPositionSync @Inject constructor(
      * Refreshes cross-device positions when the car opens a browse page, mirroring the phone's
      * per-page pull so episode lists reflect progress from other devices. Throttled to at most one
      * pull every [BROWSE_PULL_MIN_INTERVAL_MS], because the car requests several browse nodes in a
-     * burst when the app opens. Never adopts: navigating pages must not change what is playing.
+     * burst when the app opens. Also updates the now-playing episode to the freshest across devices
+     * when this device is not actively playing; the not-while-playing guard in pullLatestPositions
+     * ensures browsing during playback never changes what is playing.
      */
     fun pullForBrowse() {
         if (!supabaseClient.isLoggedIn()) {
@@ -304,7 +308,32 @@ class PodHopperPositionSync @Inject constructor(
             return
         }
         lastBrowsePullMs = now
-        pullLatestPositions(adoptCurrentEpisode = false)
+        // Browse refreshes positions and, when this device is not actively playing, updates the
+        // now-playing episode to the freshest across devices. The not-while-playing guard lives in
+        // pullLatestPositions, so browsing during playback never changes what is playing.
+        pullLatestPositions(adoptCurrentEpisode = true)
+    }
+
+    /**
+     * PodHopper: reconcile this device's now-playing window with the freshest cross-device state.
+     * Refreshes saved positions and, when this device is not actively playing, switches the current
+     * episode to the most recently played one from another device and applies its synced position,
+     * so the artwork and scrubber update without forcing the player open or interrupting playback.
+     * Throttled by [RECONCILE_MIN_INTERVAL_MS] so bursts of triggers (a session connect immediately
+     * followed by a browse request, for instance) collapse into a single pull. Called by every
+     * "the user is engaging with us now" trigger: app foreground and the in-app timer on phone, and
+     * session connect and the connected timer on the car and Android Auto.
+     */
+    fun reconcileNowPlaying() {
+        if (!supabaseClient.isLoggedIn()) {
+            return
+        }
+        val now = System.currentTimeMillis()
+        if (now - lastReconcileMs < RECONCILE_MIN_INTERVAL_MS) {
+            return
+        }
+        lastReconcileMs = now
+        pullLatestPositions(adoptCurrentEpisode = true)
     }
 
     private data class AdoptCandidate(val episodeKey: String, val feedUrl: String?, val updatedAtMs: Long)
@@ -355,7 +384,7 @@ class PodHopperPositionSync @Inject constructor(
      * competing load. Returns null when the setting is off, nothing newer exists, or we are offline,
      * in which case the caller resumes this device's own current episode. Time-bounded.
      */
-    suspend fun adoptLatestForResume(): BaseEpisode? {
+    suspend fun adoptLatestForResume(loadIntoPlayer: Boolean = false): BaseEpisode? {
         if (!supabaseClient.isLoggedIn()) {
             return null
         }
@@ -376,7 +405,7 @@ class PodHopperPositionSync @Inject constructor(
                         Log.i(LOG_TAG, "adopt-before-resume: no in-progress episode from another device")
                         return@withContext null
                     }
-                    maybeAdoptLatest(candidate, loadIntoPlayer = false)
+                    maybeAdoptLatest(candidate, loadIntoPlayer = loadIntoPlayer)
                 }
             }
         } catch (e: Exception) {
@@ -676,6 +705,7 @@ class PodHopperPositionSync @Inject constructor(
         private const val MIN_PUSH_INTERVAL_MS = 4000L
         private const val PLAY_PULL_TIMEOUT_MS = 5000L
         private const val BROWSE_PULL_MIN_INTERVAL_MS = 10000L
+        private const val RECONCILE_MIN_INTERVAL_MS = 5000L
         private const val ADOPT_SCAN_LIMIT = 10
         private const val FIRST_SYNC_SENTINEL = -1L
         private const val MAX_PARKED = 500

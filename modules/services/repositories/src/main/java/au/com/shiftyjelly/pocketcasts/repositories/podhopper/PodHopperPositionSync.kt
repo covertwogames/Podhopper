@@ -295,9 +295,9 @@ class PodHopperPositionSync @Inject constructor(
      * Refreshes cross-device positions when the car opens a browse page, mirroring the phone's
      * per-page pull so episode lists reflect progress from other devices. Throttled to at most one
      * pull every [BROWSE_PULL_MIN_INTERVAL_MS], because the car requests several browse nodes in a
-     * burst when the app opens. Also updates the now-playing episode to the freshest across devices
-     * when this device is not actively playing; the not-while-playing guard in pullLatestPositions
-     * ensures browsing during playback never changes what is playing.
+     * burst when the app opens. Never changes the now-playing episode: the user is browsing to pick
+     * something, which is exactly the wrong moment to switch the player out from under them.
+     * Adoption belongs to the reconcile and resume paths.
      */
     fun pullForBrowse() {
         if (!supabaseClient.isLoggedIn()) {
@@ -308,10 +308,7 @@ class PodHopperPositionSync @Inject constructor(
             return
         }
         lastBrowsePullMs = now
-        // Browse refreshes positions and, when this device is not actively playing, updates the
-        // now-playing episode to the freshest across devices. The not-while-playing guard lives in
-        // pullLatestPositions, so browsing during playback never changes what is playing.
-        pullLatestPositions(adoptCurrentEpisode = true)
+        pullLatestPositions(adoptCurrentEpisode = false)
     }
 
     /**
@@ -348,6 +345,20 @@ class PodHopperPositionSync @Inject constructor(
      */
     private suspend fun maybeAdoptLatest(candidate: AdoptCandidate, loadIntoPlayer: Boolean = true): BaseEpisode? {
         if (!settings.autoSwitchPlayerToCurrentPodcast.value) {
+            return null
+        }
+        // Local-activity guard, same clock on both sides: if this device had playback activity
+        // within the last few minutes, do not switch what is playing, even when the server check
+        // below would pass because this device's pushes failed to land. This covers the window
+        // where an episode is loading, buffering, or errored (so not yet "playing") right after
+        // real local use; without it a reconcile tick can yank the player mid-load. Device time is
+        // compared to device time, so clock skew between devices cannot break it. A negative
+        // elapsed value (the device clock moved backward) is treated as recent, which errs on the
+        // side of not switching.
+        val lastLocalActivityMs = prefs().getLong(PREF_LAST_LOCAL_ACTIVITY_MS, 0L)
+        val sinceLocalActivityMs = System.currentTimeMillis() - lastLocalActivityMs
+        if (lastLocalActivityMs > 0L && sinceLocalActivityMs < LOCAL_ACTIVITY_ADOPT_GRACE_MS) {
+            Log.i(LOG_TAG, "adopt skipped: local playback activity ${sinceLocalActivityMs}ms ago is within grace")
             return null
         }
         // Core guard, in server time: only switch to another device's episode when that row is newer
@@ -697,6 +708,7 @@ class PodHopperPositionSync @Inject constructor(
         private const val PLAY_PULL_TIMEOUT_MS = 5000L
         private const val BROWSE_PULL_MIN_INTERVAL_MS = 10000L
         private const val RECONCILE_MIN_INTERVAL_MS = 5000L
+        private const val LOCAL_ACTIVITY_ADOPT_GRACE_MS = 5 * 60 * 1000L
         private const val ADOPT_SCAN_LIMIT = 10
         private const val FIRST_SYNC_SENTINEL = -1L
         private const val MAX_PARKED = 500

@@ -1923,9 +1923,38 @@ open class PlaybackManager @Inject constructor(
     }
 
     /**
-     * Load the episode
+     * PodHopper: serialize episode loads. Loads were free to run concurrently before (the
+     * automotive auto-play-on-empty racing a manually picked episode, for instance), which let two
+     * coroutines stop and reset each other's players mid-load and leak an orphaned, still-playing
+     * player that nothing referenced. One load at a time means the second load runs against the
+     * queue state the first one left, so a pick during an in-flight load becomes one clean switch.
+     * The mutex is not reentrant: nothing inside the locked body calls back into this function on
+     * the same coroutine (the internal re-load paths all go through launch, so they queue here
+     * instead). Lock order with removeMutex is one-directional (removeMutex, then loadMutex), so
+     * the two cannot deadlock.
      */
+    private val loadMutex = Mutex()
+
     private suspend fun loadCurrentEpisode(
+        play: Boolean,
+        showedStreamWarning: Boolean = false,
+        forceStream: Boolean = false,
+        sourceView: SourceView = SourceView.UNKNOWN,
+    ) {
+        loadMutex.withLock {
+            loadCurrentEpisodeLocked(
+                play = play,
+                showedStreamWarning = showedStreamWarning,
+                forceStream = forceStream,
+                sourceView = sourceView,
+            )
+        }
+    }
+
+    /**
+     * Load the episode. Only call through [loadCurrentEpisode], which holds [loadMutex].
+     */
+    private suspend fun loadCurrentEpisodeLocked(
         play: Boolean,
         showedStreamWarning: Boolean = false,
         forceStream: Boolean = false,
